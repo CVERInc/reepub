@@ -1,0 +1,39 @@
+{
+  "name": "reepub",
+  "version": "1.0.0",
+  "description": "Convert scanned PDFs to reflowable EPUB books using native macOS Vision OCR. 100% offline.",
+  "main": "src/builder.js",
+  "license": "MIT",
+  "author": "CVER Inc.",
+  "homepage": "https://github.com/CVERInc/reepub",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/CVERInc/reepub.git"
+  },
+  "bugs": {
+    "url": "https://github.com/CVERInc/reepub/issues"
+  },
+  "keywords": [
+    "epub",
+    "pdf-to-epub",
+    "ocr",
+    "vision",
+    "apple-vision",
+    "scanned-pdf",
+    "ebook",
+    "macos",
+    "offline",
+    "zh-hant"
+  ],
+  "os": [
+    "darwin"
+  ],
+  "scripts": {
+    "build": "make build",
+    "ocr": "./bin/scan-ocr",
+    "convert": "node src/builder.js",
+    "start": "node src/server.js",
+    "validate": "node src/validator.js",
+    "test": "node src/test-validation.js"
+  }
+}

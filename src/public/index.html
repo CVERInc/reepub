@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reepub - Scanned PDF to EPUB Converter</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #070913;
+      --surface: rgba(16, 20, 38, 0.6);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-focus: rgba(99, 102, 241, 0.4);
+      --accent: #6366f1;
+      --accent-glow: rgba(99, 102, 241, 0.15);
+      --cyan: #06b6d4;
+      --cyan-glow: rgba(6, 182, 212, 0.15);
+      --text: #cbd5e1;
+      --text-white: #ffffff;
+      --text-sec: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-x: hidden;
+      position: relative;
+    }
+
+    /* Gradient Background Glows */
+    body::before {
+      content: '';
+      position: absolute;
+      width: 600px;
+      height: 600px;
+      top: -150px;
+      left: -150px;
+      background: radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: '';
+      position: absolute;
+      width: 500px;
+      height: 500px;
+      bottom: -100px;
+      right: -100px;
+      background: radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .container {
+      position: relative;
+      z-index: 10;
+      width: 100%;
+      max-width: 680px;
+      background: var(--surface);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 40px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 50px rgba(99, 102, 241, 0.05);
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    header h1 {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-white);
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #ffffff 30%, #a5b4fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    header p {
+      color: var(--text-sec);
+      font-size: 0.95rem;
+    }
+
+    /* Drag & Drop Zone */
+    .dropzone {
+      border: 2px dashed var(--border);
+      border-radius: 16px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(255, 255, 255, 0.01);
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.02);
+      box-shadow: 0 0 20px var(--accent-glow);
+    }
+
+    .dropzone .icon {
+      font-size: 3rem;
+      margin-bottom: 12px;
+      display: inline-block;
+      transition: transform 0.3s ease;
+    }
+
+    .dropzone:hover .icon {
+      transform: translateY(-5px);
+    }
+
+    .dropzone .title {
+      font-weight: 600;
+      color: var(--text-white);
+      margin-bottom: 6px;
+      font-size: 1.1rem;
+    }
+
+    .dropzone .subtitle {
+      font-size: 0.85rem;
+      color: var(--text-sec);
+    }
+
+    .dropzone input[type="file"] {
+      display: none;
+    }
+
+    /* Selected File Badge */
+    .file-badge {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(99, 102, 241, 0.1);
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .file-badge .file-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .file-badge .file-name {
+      color: var(--text-white);
+      font-weight: 500;
+      font-size: 0.9rem;
+    }
+
+    .file-badge .file-size {
+      font-size: 0.8rem;
+      color: var(--text-sec);
+    }
+
+    .file-badge .remove-btn {
+      cursor: pointer;
+      color: var(--text-sec);
+      font-weight: bold;
+      transition: color 0.2s;
+      padding: 4px;
+    }
+
+    .file-badge .remove-btn:hover {
+      color: #ef4444;
+    }
+
+    /* Input Forms */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+
+    @media (max-width: 500px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-group label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text-sec);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .form-group input {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 16px;
+      color: var(--text-white);
+      font-family: inherit;
+      font-size: 0.95rem;
+      outline: none;
+      transition: all 0.3s ease;
+    }
+
+    .form-group input:focus {
+      border-color: var(--border-focus);
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 0 15px var(--accent-glow);
+    }
+
+    /* Buttons */
+    .btn-convert {
+      width: 100%;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--cyan) 100%);
+      color: var(--text-white);
+      border: none;
+      border-radius: 14px;
+      padding: 16px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .btn-convert:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(99, 102, 241, 0.4), 0 0 15px rgba(6, 182, 212, 0.2);
+    }
+
+    .btn-convert:active:not(:disabled) {
+      transform: translateY(0);
+    }
+
+    .btn-convert:disabled {
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--text-sec);
+      box-shadow: none;
+      cursor: not-allowed;
+      border: 1px solid var(--border);
+    }
+
+    /* Terminal View */
+    .terminal-container {
+      display: none;
+      margin-top: 32px;
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    .terminal-header {
+      background: rgba(15, 18, 36, 0.9);
+      border: 1px solid var(--border);
+      border-bottom: none;
+      padding: 10px 16px;
+      border-top-left-radius: 12px;
+      border-top-right-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .terminal-dots {
+      display: flex;
+      gap: 6px;
+    }
+
+    .terminal-dots span {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-red { background: #ef4444; }
+    .dot-yellow { background: #f59e0b; }
+    .dot-green { background: #10b981; }
+
+    .terminal-title {
+      font-size: 0.75rem;
+      font-family: monospace;
+      color: var(--text-sec);
+    }
+
+    .terminal-body {
+      background: #04060d;
+      border: 1px solid var(--border);
+      border-top: none;
+      border-bottom-left-radius: 12px;
+      border-bottom-right-radius: 12px;
+      height: 220px;
+      overflow-y: auto;
+      padding: 16px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      color: #10b981;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    /* Custom scrollbar for terminal */
+    .terminal-body::-webkit-scrollbar {
+      width: 8px;
+    }
+    .terminal-body::-webkit-scrollbar-track {
+      background: #04060d;
+    }
+    .terminal-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+    }
+    .terminal-body::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    /* Progress bar */
+    .progress-bar-container {
+      display: none;
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 3px;
+      margin-top: 24px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent) 0%, var(--cyan) 100%);
+      box-shadow: 0 0 10px rgba(6, 182, 212, 0.5);
+      transition: width 0.3s ease;
+    }
+
+    .status-text {
+      display: none;
+      text-align: center;
+      font-size: 0.9rem;
+      color: var(--cyan);
+      margin-top: 10px;
+      font-weight: 500;
+    }
+
+    /* Spinner */
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+      border-top: 3px solid var(--text-white);
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <h1>Reepub</h1>
+      <p>完全本機離線 OCR 辨識，將掃描版 PDF 重組為 reflowable 行動電子書</p>
+    </header>
+
+    <!-- Drag & Drop Zone -->
+    <div class="dropzone" id="dropzone">
+      <span class="icon">📄</span>
+      <div class="title">將 PDF 檔案拖放到此處</div>
+      <div class="subtitle">或點選瀏覽檔案（限制 PDF 格式）</div>
+      <input type="file" id="fileInput" accept="application/pdf">
+    </div>
+
+    <!-- Selected File Info -->
+    <div class="file-badge" id="fileBadge">
+      <div class="file-info">
+        <span style="font-size: 1.2rem;">📂</span>
+        <div>
+          <div class="file-name" id="fileName">document.pdf</div>
+          <div class="file-size" id="fileSize">0.0 MB</div>
+        </div>
+      </div>
+      <span class="remove-btn" id="removeBtn">✕</span>
+    </div>
+
+    <!-- Metadata Fields -->
+    <div class="form-grid">
+      <div class="form-group">
+        <label for="bookTitle">書籍名稱</label>
+        <input type="text" id="bookTitle" placeholder="預設使用檔名">
+      </div>
+      <div class="form-group">
+        <label for="bookAuthor">作者名稱</label>
+        <input type="text" id="bookAuthor" placeholder="預設未知作者" value="Unknown">
+      </div>
+    </div>
+
+    <!-- Convert Action Button -->
+    <button class="btn-convert" id="convertBtn" disabled>
+      <span class="spinner" id="btnSpinner"></span>
+      <span id="btnText">開始轉換為 EPUB</span>
+    </button>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar-container" id="progressBarContainer">
+      <div class="progress-bar" id="progressBar"></div>
+    </div>
+    <div class="status-text" id="statusText">處理中...</div>
+
+    <!-- Logs Terminal -->
+    <div class="terminal-container" id="terminalContainer">
+      <div class="terminal-header">
+        <div class="terminal-dots">
+          <span class="dot-red"></span>
+          <span class="dot-yellow"></span>
+          <span class="dot-green"></span>
+        </div>
+        <div class="terminal-title">conversion_logs.log</div>
+        <div style="width: 40px;"></div> <!-- placeholder -->
+      </div>
+      <div class="terminal-body" id="terminal"></div>
+    </div>
+  </div>
+
+  <script>
+    const dropzone = document.getElementById('dropzone');
+    const fileInput = document.getElementById('fileInput');
+    const fileBadge = document.getElementById('fileBadge');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const removeBtn = document.getElementById('removeBtn');
+    const convertBtn = document.getElementById('convertBtn');
+    const bookTitle = document.getElementById('bookTitle');
+    const bookAuthor = document.getElementById('bookAuthor');
+    const terminalContainer = document.getElementById('terminalContainer');
+    const terminal = document.getElementById('terminal');
+    const progressBarContainer = document.getElementById('progressBarContainer');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('statusText');
+    const btnSpinner = document.getElementById('btnSpinner');
+    const btnText = document.getElementById('btnText');
+
+    let selectedFile = null;
+
+    // Trigger click on file input
+    dropzone.addEventListener('click', () => fileInput.click());
+
+    // Drag-over styling
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+
+    // Drop file
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && files[0].type === 'application/pdf') {
+        handleFileSelect(files[0]);
+      } else {
+        alert('請上傳 PDF 檔案！');
+      }
+    });
+
+    // Select file via browse dialog
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length > 0) {
+        handleFileSelect(fileInput.files[0]);
+      }
+    });
+
+    function handleFileSelect(file) {
+      selectedFile = file;
+      fileName.textContent = file.name;
+      fileSize.textContent = (file.size / (1024 * 1024)).toFixed(2) + ' MB';
+      
+      // Auto-fill title with filename without ext
+      const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+      bookTitle.value = nameWithoutExt;
+
+      dropzone.style.display = 'none';
+      fileBadge.style.display = 'flex';
+      convertBtn.disabled = false;
+    }
+
+    // Remove file
+    removeBtn.addEventListener('click', () => {
+      selectedFile = null;
+      fileInput.value = '';
+      fileBadge.style.display = 'none';
+      dropzone.style.display = 'block';
+      convertBtn.disabled = true;
+    });
+
+    // Convert Click Handler
+    convertBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
+
+      // Lock UI
+      convertBtn.disabled = true;
+      removeBtn.style.display = 'none';
+      btnSpinner.style.display = 'inline-block';
+      btnText.textContent = '上傳檔案中...';
+      
+      progressBarContainer.style.display = 'block';
+      progressBar.style.width = '10%';
+      statusText.style.display = 'block';
+      statusText.textContent = '正在上傳 PDF 檔案...';
+      
+      terminalContainer.style.display = 'block';
+      terminal.textContent = '[Client] Initiating file upload...\n';
+
+      try {
+        // Step 1: Upload the file
+        const uploadRes = await fetch('/upload', {
+          method: 'POST',
+          body: selectedFile
+        });
+        
+        if (!uploadRes.ok) throw new Error('File upload failed.');
+        
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success) throw new Error(uploadData.error || 'Upload error');
+
+        terminal.textContent += `[Client] Upload successful. Temporary file stored.\n`;
+        btnText.textContent = 'OCR 轉檔中...';
+        statusText.textContent = '正在進行離線 OCR 辨識 (此步驟可能需要數分鐘)...';
+        progressBar.style.width = '25%';
+
+        // Step 2: Request conversion and read streaming output
+        const title = bookTitle.value || 'Book';
+        const author = bookAuthor.value || 'Unknown';
+        
+        const convertUrl = `/convert?tempPath=${encodeURIComponent(uploadData.tempPath)}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
+        
+        const response = await fetch(convertUrl);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        
+        let done = false;
+        let finalToken = null;
+        let lastLoggedProgress = 0;
+
+        while (!done) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            const text = decoder.decode(value);
+            terminal.textContent += text;
+            terminal.scrollTop = terminal.scrollHeight; // Auto scroll
+
+            // Parse progress percentage if output has "page X/Y" or "Processing page X/Y"
+            const match = text.match(/OCR on page (\d+)\/(\d+)/i);
+            if (match) {
+              const current = parseInt(match[1]);
+              const total = parseInt(match[2]);
+              const percent = 25 + Math.floor((current / total) * 65); // Scales from 25% to 90%
+              progressBar.style.width = `${percent}%`;
+              statusText.textContent = `離線 OCR 辨識中：第 ${current}/${total} 頁...`;
+            }
+            
+            // Check for completion token
+            const tokenMatch = text.match(/DOWNLOAD_TOKEN:([^\n]+)/);
+            if (tokenMatch) {
+              finalToken = tokenMatch[1].trim();
+            }
+          }
+        }
+
+        // Step 3: Handle completion
+        if (finalToken) {
+          progressBar.style.width = '100%';
+          statusText.textContent = '轉換成功！正在下載電子書...';
+          statusText.style.color = '#10b981';
+          btnText.textContent = '轉換完成';
+          btnSpinner.style.display = 'none';
+
+          // Trigger download
+          window.location.href = `/download?token=${encodeURIComponent(finalToken)}&title=${encodeURIComponent(title)}`;
+          
+          setTimeout(() => {
+            alert('電子書轉換成功，已自動為您下載！');
+            resetUI();
+          }, 1500);
+        } else {
+          throw new Error('Conversion failed or aborted.');
+        }
+
+      } catch (err) {
+        console.error(err);
+        terminal.textContent += `\n[Error] ${err.message}\n`;
+        terminal.scrollTop = terminal.scrollHeight;
+        statusText.textContent = '轉檔失敗！請檢查記錄終端機。';
+        statusText.style.color = '#ef4444';
+        btnSpinner.style.display = 'none';
+        btnText.textContent = '重新轉換';
+        convertBtn.disabled = false;
+        removeBtn.style.display = 'inline-block';
+      }
+    });
+
+    function resetUI() {
+      selectedFile = null;
+      fileInput.value = '';
+      fileBadge.style.display = 'none';
+      dropzone.style.display = 'block';
+      convertBtn.disabled = true;
+      removeBtn.style.display = 'inline-block';
+      progressBarContainer.style.display = 'none';
+      progressBar.style.width = '0%';
+      statusText.style.display = 'none';
+      statusText.style.color = 'var(--cyan)';
+      btnSpinner.style.display = 'none';
+      btnText.textContent = '開始轉換為 EPUB';
+      terminalContainer.style.display = 'none';
+      terminal.textContent = '';
+    }
+  </script>
+</body>
+</html>
