@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reepub - Scanned PDF to EPUB Converter</title>
+  <title>Reepub — 把你的紙，裝幀成私人電子書庫</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
@@ -409,7 +409,8 @@
   <div class="container">
     <header>
       <h1>Reepub</h1>
-      <p>完全本機離線 OCR 辨識，將掃描版 PDF 重組為 reflowable 行動電子書</p>
+      <p>完全本機離線 OCR，把你自己的掃描檔裝幀成乾淨、可重排的私人電子書</p>
+      <p style="font-size: 0.8rem; color: var(--text-sec); margin-top: 8px; opacity: 0.75;">僅供處理你擁有或有權數位化的檔案 · 一切都在本機進行，不會上傳</p>
     </header>
 
     <!-- Drag & Drop Zone -->
@@ -435,12 +436,12 @@
     <!-- Metadata Fields -->
     <div class="form-grid">
       <div class="form-group">
-        <label for="bookTitle">書籍名稱</label>
+        <label for="bookTitle">書名／標題</label>
         <input type="text" id="bookTitle" placeholder="預設使用檔名">
       </div>
       <div class="form-group">
-        <label for="bookAuthor">作者名稱</label>
-        <input type="text" id="bookAuthor" placeholder="預設未知作者" value="Unknown">
+        <label for="bookAuthor">作者／來源（選填）</label>
+        <input type="text" id="bookAuthor" placeholder="可留空">
       </div>
     </div>
 
@@ -583,7 +584,7 @@
 
         // Step 2: Request conversion and read streaming output
         const title = bookTitle.value || 'Book';
-        const author = bookAuthor.value || 'Unknown';
+        const author = bookAuthor.value.trim();
         
         const convertUrl = `/convert?tempPath=${encodeURIComponent(uploadData.tempPath)}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
         

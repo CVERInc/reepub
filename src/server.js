@@ -53,7 +53,7 @@ const server = http.createServer((req, res) => {
   else if (pathname === '/convert' && req.method === 'GET') {
     const tempPath = parsedUrl.searchParams.get('tempPath');
     const title = parsedUrl.searchParams.get('title') || 'Book';
-    const author = parsedUrl.searchParams.get('author') || 'Unknown';
+    const author = parsedUrl.searchParams.get('author') || '';
     
     if (!tempPath || !fs.existsSync(tempPath)) {
       res.writeHead(400, { 'Content-Type': 'text/plain; charset=utf-8' });

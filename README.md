@@ -1,8 +1,8 @@
 # reepub
 
-> Turn scanned PDFs into clean, reflowable EPUB books — natively on your Mac, 100% offline.
+> Bind the paper you already own — notes, letters, manuscripts, public-domain works — into a personal library of clean, reflowable ebooks. Natively on your Mac, 100% offline.
 >
-> 把掃描的 PDF 轉成乾淨、可重排的 EPUB 電子書 —— 在你的 Mac 上原生執行，完全離線。
+> 把你已經擁有的紙 —— 筆記、信件、手稿、公有領域藏書 —— 裝幀成一座乾淨、可重排的私人電子書庫。在你的 Mac 上原生執行，完全離線。
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2010.15%2B-black?logo=apple)](https://www.apple.com/macos/)
@@ -10,6 +10,8 @@
 [![EPUB: 3.0](https://img.shields.io/badge/EPUB-3.0-green)](https://www.w3.org/publishing/epub3/)
 
 **No API keys · No subscriptions · No internet · Your files never leave your machine.**
+
+> **What reepub is for.** reepub is a tool for digitizing documents **you own or have the right to digitize** — your own writing, notes and correspondence, public-domain works, or books you physically own — into a personal ebook library you keep locally. Everything is processed on your own Mac; nothing is ever uploaded. Please respect copyright and the rights of authors and publishers.
 
 [**English**](#english) ・ [**繁體中文**](#繁體中文)
 
@@ -19,12 +21,13 @@
 
 ### Why reepub?
 
-Most "PDF to EPUB" tools either upload your book to a cloud service, charge per
-page, or spit out a fixed-layout EPUB that's really just images glued together —
-unreadable on a phone. `reepub` is different:
+You've got paper worth keeping — your own notes, a stack of letters, an
+out-of-print book you own. Most "PDF to EPUB" tools either upload it to a cloud
+service, charge per page, or spit out a fixed-layout EPUB that's really just
+images glued together — unreadable on a phone. `reepub` is different:
 
 - **Runs entirely on your Mac** via Apple's [Vision](https://developer.apple.com/documentation/vision)
-  framework. Your scanned book never leaves your machine.
+  framework. Your documents never leave your machine.
 - **Neural Engine accelerated** on Apple Silicon (M1–M4+) for fast, high-quality OCR.
 - **Reflowable output** — text is reconstructed into real paragraphs and chapters,
   so it reflows on any screen size, not a frozen page image.
@@ -123,13 +126,16 @@ MIT — see [LICENSE](LICENSE). © 2026 CVER Inc.
 
 ## 繁體中文
 
+> **reepub 的用途。** reepub 是用來數位化**你擁有、或有權數位化的文件**的工具 —— 你自己寫的東西、筆記與信件、公有領域作品，或你實際擁有的書 —— 把它們裝幀成留在本機的私人電子書庫。一切都在你自己的 Mac 上處理，不會上傳。請尊重著作權與作者、出版者的權利。
+
 ### 為什麼用 reepub？
 
-市面上多數「PDF 轉 EPUB」工具不是把你的書上傳到雲端、按頁收費，就是吐出一份
-其實只是圖片拼起來的固定版面 EPUB —— 在手機上根本沒法讀。`reepub` 不一樣：
+你有想留下來的紙 —— 自己的筆記、一疊信件、一本你擁有的絕版書。市面上多數
+「PDF 轉 EPUB」工具不是把它上傳到雲端、按頁收費，就是吐出一份其實只是圖片
+拼起來的固定版面 EPUB —— 在手機上根本沒法讀。`reepub` 不一樣：
 
 - **完全在你的 Mac 上執行**，使用 Apple 的 [Vision](https://developer.apple.com/documentation/vision)
-  框架，掃描的書檔不會離開你的電腦。
+  框架，你的文件不會離開你的電腦。
 - 在 Apple Silicon（M1–M4+）上由 **Neural Engine 加速**，OCR 又快又準。
 - **可重排版面** —— 文字會被重組成真正的段落與章節，能在任何螢幕尺寸自動重排，
   而不是凍結的頁面圖片。

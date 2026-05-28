@@ -13,7 +13,7 @@ if (args.length < 2) {
 const pdfPath = path.resolve(args[0]);
 const epubPath = path.resolve(args[1]);
 const bookTitle = args[2] || path.basename(pdfPath, path.extname(pdfPath));
-const bookAuthor = args[3] || 'Unknown Author';
+const bookAuthor = (args[3] || '').trim(); // optional: author / source, blank is fine
 
 const PROJECT_DIR = path.resolve(__dirname, '..');
 const TEMP_DIR = path.join(PROJECT_DIR, 'temp-epub-ocr');
@@ -24,7 +24,7 @@ const IMAGES_DIR = path.join(OEBPS_DIR, 'images');
 console.log(`Target PDF: ${pdfPath}`);
 console.log(`Output EPUB: ${epubPath}`);
 console.log(`Book Title: ${bookTitle}`);
-console.log(`Author: ${bookAuthor}`);
+console.log(`Author / Source: ${bookAuthor || '(none)'}`);
 
 // 1. Set up temp directory
 if (fs.existsSync(TEMP_DIR)) {
@@ -397,11 +397,14 @@ if (isCoverExist) {
   coverRef = `    <itemref idref="cover-xhtml"/>`;
 }
 
+const creatorMeta = bookAuthor
+  ? `\n    <dc:creator>${bookAuthor.replace(/&/g, '&amp;')}</dc:creator>`
+  : '';
+
 const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:title>${bookTitle.replace(/&/g, '&amp;')}</dc:title>
-    <dc:creator>${bookAuthor.replace(/&/g, '&amp;')}</dc:creator>
+    <dc:title>${bookTitle.replace(/&/g, '&amp;')}</dc:title>${creatorMeta}
     <dc:language>zh-Hant</dc:language>
     <dc:identifier id="BookID">urn:uuid:ocr-book-${Date.now()}</dc:identifier>
     <meta property="dcterms:modified">${new Date().toISOString().substring(0, 19) + 'Z'}</meta>
