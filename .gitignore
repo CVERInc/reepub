@@ -9,6 +9,9 @@ bin/scan-ocr
 # Native launcher bundle (built via `bin/build-app.sh`)
 Reepub.app/
 
+# Native SwiftUI app build output (built via `macos/build-app.sh`)
+macos/build/
+
 # Runtime temp dirs
 temp-epub-ocr/
 temp-test-validation/
