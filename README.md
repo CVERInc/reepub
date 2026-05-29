@@ -48,9 +48,10 @@ images glued together — unreadable on a phone. `reepub` is different:
 
 ### Prerequisites
 
-- **macOS** 10.15+ (Apple Silicon strongly recommended)
-- **Xcode Command Line Tools** — for the Swift compiler (`xcode-select --install`)
-- **Node.js** v12+
+- **macOS** 13+ (Apple Silicon strongly recommended) for the native app
+- **Xcode Command Line Tools** — for the Swift compiler (`xcode-select --install`).
+  No full Xcode required.
+- **Node.js** v12+ — *only* for the optional web UI / CLI path
 - `zip` / `unzip` / `xmllint` — preinstalled on macOS
 
 ### Build
@@ -58,25 +59,26 @@ images glued together — unreadable on a phone. `reepub` is different:
 ```bash
 git clone https://github.com/CVERInc/reepub.git
 cd reepub
-make build          # compiles src/main.swift → bin/scan-ocr
-```
-
-Optionally build the one-click launcher app:
-
-```bash
-bash bin/build-app.sh   # creates Reepub.app
+make app            # builds macos/build/Reepub.app (Command Line Tools only)
 ```
 
 ### Usage
 
-**Option A — One-click app (easiest)**
+**Option A — Native macOS app (recommended)**
 
-Double-click **`Reepub.app`**. It starts the local server and opens the web UI in
-your browser. Run it again to reopen the page or shut the server down.
+```bash
+make app
+open macos/build/Reepub.app
+```
+
+Pick a PDF (or drag one onto the window), let Vision OCR run, optionally set a
+title and author, then **存成 EPUB…** to save the finished book. Everything —
+OCR, assembly, and validation — happens in the app, fully offline.
 
 **Option B — Local web UI**
 
 ```bash
+make build           # compiles the Swift OCR CLI (bin/scan-ocr) used by the server
 npm start            # serves http://localhost:30232
 ```
 
@@ -86,6 +88,7 @@ EPUB once conversion completes. The conversion log streams live.
 **Option C — Command line**
 
 ```bash
+make build
 node src/builder.js <input.pdf> <output.epub> [book-title] [book-author]
 ```
 
@@ -154,9 +157,10 @@ MIT — see [LICENSE](LICENSE). © 2026 CVER Inc.
 
 ### 環境需求
 
-- **macOS** 10.15 以上（強烈建議 Apple Silicon）
-- **Xcode Command Line Tools** —— Swift 編譯器（`xcode-select --install`）
-- **Node.js** v12 以上
+- **macOS** 13 以上（強烈建議 Apple Silicon）——原生 App
+- **Xcode Command Line Tools** —— Swift 編譯器（`xcode-select --install`），
+  不需要完整的 Xcode。
+- **Node.js** v12 以上 —— *僅* 在使用網頁介面／CLI 時需要
 - `zip`／`unzip`／`xmllint` —— macOS 內建
 
 ### 編譯
@@ -164,25 +168,25 @@ MIT — see [LICENSE](LICENSE). © 2026 CVER Inc.
 ```bash
 git clone https://github.com/CVERInc/reepub.git
 cd reepub
-make build          # 將 src/main.swift 編譯成 bin/scan-ocr
-```
-
-也可以選擇建立一鍵啟動的 App：
-
-```bash
-bash bin/build-app.sh   # 產生 Reepub.app
+make app            # 建立 macos/build/Reepub.app（只需 Command Line Tools）
 ```
 
 ### 使用方式
 
-**方式 A —— 一鍵 App（最簡單）**
+**方式 A —— 原生 macOS App（推薦）**
 
-雙擊 **`Reepub.app`**，它會啟動本機伺服器並在瀏覽器開啟網頁介面。再次執行可重新
-開啟頁面或關閉伺服器。
+```bash
+make app
+open macos/build/Reepub.app
+```
+
+選擇一份 PDF（或直接拖進視窗），讓 Vision OCR 跑完，視需要填入書名與作者，再按
+**存成 EPUB…** 儲存完成的書。OCR、組裝與驗證全部在 App 內完成，完全離線。
 
 **方式 B —— 本機網頁介面**
 
 ```bash
+make build           # 編譯伺服器使用的 Swift OCR CLI（bin/scan-ocr）
 npm start            # 提供 http://localhost:30232
 ```
 
@@ -191,6 +195,7 @@ npm start            # 提供 http://localhost:30232
 **方式 C —— 命令列**
 
 ```bash
+make build
 node src/builder.js <input.pdf> <output.epub> [書名] [作者]
 ```
 

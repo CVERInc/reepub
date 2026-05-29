@@ -3,6 +3,9 @@ node_modules/
 npm-debug.log*
 package-lock.json
 
+# Internal session handoff docs — do not publish.
+HANDOFF.md
+
 # Compiled Swift OCR binary (built via `make build`)
 bin/scan-ocr
 

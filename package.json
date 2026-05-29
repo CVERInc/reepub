@@ -29,6 +29,7 @@
     "darwin"
   ],
   "scripts": {
+    "app": "bash macos/build-app.sh",
     "build": "make build",
     "ocr": "./bin/scan-ocr",
     "convert": "node src/builder.js",
