@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reepub — 把你的紙，裝幀成私人電子書庫</title>
+  <meta name="description" content="100% offline macOS tool that turns scanned PDFs you own into reflowable, validated EPUB3 books using Apple Vision OCR. 完全離線的 macOS 工具，把你擁有的掃描 PDF 裝幀成可重排、已驗證的 EPUB3。">
+  <meta property="og:title" content="Reepub — turn your own paper into a personal library of ebooks">
+  <meta property="og:description" content="100% offline · Apple Vision OCR · reflowable EPUB3 · zh-Hant + en · MIT">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://oss.cver.net/reepub/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Comfortaa:wght@500;600;700&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --teal: #0a8c8e;
+      --dark-teal: #084a4c;
+      --deep: #052f30;
+      --mint: #aceace;
+      --text: #e6f4f3;
+      --text-dim: rgba(230, 244, 243, 0.66);
+      --text-faint: rgba(230, 244, 243, 0.42);
+      --surface: rgba(255, 255, 255, 0.06);
+      --surface-2: rgba(255, 255, 255, 0.09);
+      --border: rgba(172, 234, 206, 0.18);
+      --code-bg: rgba(3, 28, 28, 0.7);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Nunito', system-ui, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1100px 700px at 78% -8%, rgba(172, 234, 206, 0.16), transparent 60%),
+        radial-gradient(900px 800px at 12% 8%, rgba(10, 140, 142, 0.30), transparent 62%),
+        linear-gradient(160deg, var(--dark-teal) 0%, var(--deep) 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+      line-height: 1.65;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a { color: inherit; }
+
+    .wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+    /* ---- Top bar ---- */
+    nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 0;
+      max-width: 960px;
+      margin: 0 auto;
+      padding-left: 24px;
+      padding-right: 24px;
+    }
+    .brand {
+      font-family: 'Comfortaa', cursive;
+      font-weight: 700;
+      font-size: 1.4rem;
+      letter-spacing: -0.01em;
+      color: #fff;
+    }
+    .nav-right { display: flex; align-items: center; gap: 8px; }
+    .nav-link {
+      text-decoration: none;
+      color: var(--text-dim);
+      font-weight: 600;
+      font-size: 0.92rem;
+      padding: 8px 14px;
+      border-radius: 999px;
+      transition: all 0.2s ease;
+    }
+    .nav-link:hover { color: #fff; background: var(--surface); }
+    .lang-toggle {
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-family: inherit;
+      font-weight: 700;
+      font-size: 0.82rem;
+      padding: 7px 14px;
+      border-radius: 999px;
+      transition: all 0.2s ease;
+    }
+    .lang-toggle:hover { background: var(--surface-2); border-color: var(--mint); }
+
+    /* ---- Hero ---- */
+    header.hero { text-align: center; padding: 56px 0 40px; }
+    .wordmark {
+      font-family: 'Comfortaa', cursive;
+      font-weight: 700;
+      font-size: clamp(3rem, 9vw, 5.2rem);
+      line-height: 1;
+      letter-spacing: -0.02em;
+      color: #fff;
+      margin-bottom: 18px;
+      text-shadow: 0 8px 40px rgba(172, 234, 206, 0.25);
+    }
+    .tagline {
+      font-size: clamp(1.15rem, 3.2vw, 1.6rem);
+      font-weight: 700;
+      color: var(--mint);
+      margin-bottom: 14px;
+    }
+    .sub {
+      font-size: 1.05rem;
+      color: var(--text-dim);
+      max-width: 620px;
+      margin: 0 auto 10px;
+    }
+    .intended-use {
+      font-size: 0.86rem;
+      color: var(--text-faint);
+      max-width: 560px;
+      margin: 18px auto 0;
+      padding: 10px 18px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+    }
+
+    .cta-row {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 32px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 1rem;
+      padding: 14px 26px;
+      border-radius: 14px;
+      transition: all 0.2s ease;
+      border: 1px solid transparent;
+    }
+    .btn-primary {
+      background: var(--mint);
+      color: var(--deep);
+      box-shadow: 0 8px 28px rgba(172, 234, 206, 0.28);
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 34px rgba(172, 234, 206, 0.4); }
+    .btn-ghost {
+      background: var(--surface);
+      color: #fff;
+      border-color: var(--border);
+    }
+    .btn-ghost:hover { background: var(--surface-2); transform: translateY(-2px); }
+
+    /* ---- App window mockup ---- */
+    .mock-stage { padding: 30px 0 10px; display: flex; justify-content: center; }
+    .mock {
+      width: min(420px, 100%);
+      border-radius: 22px;
+      padding: 30px 28px 34px;
+      background:
+        radial-gradient(600px 300px at 80% 0%, rgba(172, 234, 206, 0.14), transparent 60%),
+        linear-gradient(155deg, var(--teal) 0%, var(--dark-teal) 100%);
+      border: 1px solid rgba(172, 234, 206, 0.22);
+      box-shadow: 0 30px 70px rgba(0, 0, 0, 0.4);
+      text-align: center;
+    }
+    .mock-dots { display: flex; gap: 7px; margin-bottom: 24px; }
+    .mock-dots span { width: 11px; height: 11px; border-radius: 50%; opacity: 0.9; }
+    .mock-dots .r { background: #ff5f57; }
+    .mock-dots .y { background: #febc2e; }
+    .mock-dots .g { background: #28c840; }
+    .mock-title { font-family: 'Comfortaa', cursive; font-weight: 700; font-size: 2.1rem; color: #fff; margin-bottom: 6px; }
+    .mock-sub { font-size: 0.84rem; color: rgba(255,255,255,0.78); margin-bottom: 22px; }
+    .mock-btns { display: flex; gap: 12px; justify-content: center; margin-bottom: 22px; }
+    .mock-btn { font-size: 0.86rem; font-weight: 700; padding: 11px 18px; border-radius: 999px; }
+    .mock-btn.line { border: 1px solid rgba(255,255,255,0.4); color: #fff; }
+    .mock-btn.fill { background: var(--mint); color: var(--deep); }
+    .mock-field {
+      text-align: left;
+      background: rgba(255,255,255,0.09);
+      border-radius: 10px;
+      padding: 9px 13px;
+      margin: 8px auto 0;
+      max-width: 280px;
+      font-size: 0.9rem;
+      color: #fff;
+    }
+    .mock-label { font-size: 0.68rem; font-weight: 700; color: rgba(255,255,255,0.6); margin: 12px auto 0; max-width: 280px; text-align: left; }
+    .mock-meta { font-size: 0.74rem; color: rgba(255,255,255,0.6); margin-top: 18px; }
+
+    /* ---- Sections ---- */
+    section { padding: 52px 0; }
+    .section-title {
+      font-family: 'Comfortaa', cursive;
+      font-weight: 700;
+      font-size: 1.8rem;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 8px;
+    }
+    .section-lead { text-align: center; color: var(--text-dim); max-width: 600px; margin: 0 auto 36px; }
+
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 24px;
+      transition: all 0.2s ease;
+    }
+    .card:hover { background: var(--surface-2); transform: translateY(-3px); }
+    .card .ic { font-size: 1.6rem; margin-bottom: 12px; }
+    .card h3 { font-family: 'Comfortaa', cursive; font-weight: 600; font-size: 1.1rem; color: #fff; margin-bottom: 7px; }
+    .card p { font-size: 0.92rem; color: var(--text-dim); }
+
+    /* ---- Get started ---- */
+    .steps { max-width: 720px; margin: 0 auto; }
+    .step {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 22px 24px;
+      margin-bottom: 16px;
+    }
+    .step-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+    .step-badge {
+      font-family: 'Comfortaa', cursive;
+      font-weight: 700;
+      font-size: 0.8rem;
+      color: var(--deep);
+      background: var(--mint);
+      border-radius: 999px;
+      padding: 3px 11px;
+      white-space: nowrap;
+    }
+    .step-head h3 { font-family: 'Comfortaa', cursive; font-weight: 600; font-size: 1.12rem; color: #fff; }
+    .step p { color: var(--text-dim); font-size: 0.92rem; margin-bottom: 12px; }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: 'SFMono-Regular', ui-monospace, Menlo, monospace;
+      font-size: 0.84rem;
+      color: var(--mint);
+      line-height: 1.7;
+    }
+    pre .c { color: var(--text-faint); }
+    .reqs { text-align: center; color: var(--text-faint); font-size: 0.86rem; margin-top: 28px; }
+
+    /* ---- Ethos ---- */
+    .ethos {
+      text-align: center;
+      max-width: 660px;
+      margin: 0 auto;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 32px;
+    }
+    .ethos p { color: var(--text-dim); }
+    .ethos strong { color: var(--mint); font-weight: 700; }
+
+    /* ---- Footer ---- */
+    footer {
+      text-align: center;
+      padding: 44px 24px 56px;
+      color: var(--text-faint);
+      font-size: 0.86rem;
+      border-top: 1px solid var(--border);
+      margin-top: 30px;
+    }
+    footer a { color: var(--text-dim); text-decoration: none; font-weight: 600; }
+    footer a:hover { color: var(--mint); }
+    .foot-links { display: flex; gap: 18px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+
+    [data-en] { display: none; }
+    body.en [data-zh] { display: none; }
+    body.en [data-en] { display: revert; }
+  </style>
+</head>
+<body>
+
+  <nav>
+    <span class="brand">Reepub</span>
+    <div class="nav-right">
+      <a class="nav-link" href="#get"><span data-zh>安裝</span><span data-en>Get it</span></a>
+      <a class="nav-link" href="https://github.com/CVERInc/reepub" target="_blank" rel="noopener">GitHub</a>
+      <button class="lang-toggle" id="langBtn">EN</button>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="wrap">
+      <h1 class="wordmark">Reepub</h1>
+      <p class="tagline">
+        <span data-zh>把你的紙，裝幀成私人電子書庫</span>
+        <span data-en>Bind your own paper into a personal library</span>
+      </p>
+      <p class="sub">
+        <span data-zh>完全離線的 macOS 工具，用 Apple Vision OCR 把你擁有的掃描 PDF，裝幀成乾淨、可重排、已驗證的 EPUB3 電子書。</span>
+        <span data-en>A 100% offline macOS tool that turns scanned PDFs you own into clean, reflowable, validated EPUB3 books — powered by Apple Vision OCR.</span>
+      </p>
+      <p class="intended-use">
+        <span data-zh>僅供處理你擁有、或有權數位化的檔案 —— 你的筆記、信件、手稿、公有領域藏書。一切都在你自己的 Mac 上進行，永遠不上傳。</span>
+        <span data-en>For documents you own or have the right to digitize — your notes, letters, manuscripts, public-domain works. Everything runs on your own Mac; nothing is ever uploaded.</span>
+      </p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="#get">
+          <span data-zh>↓ 取得 Reepub</span><span data-en>↓ Get Reepub</span>
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/CVERInc/reepub" target="_blank" rel="noopener">
+          <span data-zh>在 GitHub 查看原始碼</span><span data-en>View source on GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <div class="mock-stage">
+    <div class="mock" aria-hidden="true">
+      <div class="mock-dots"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div class="mock-title">Reepub</div>
+      <div class="mock-sub"><span data-zh>把你的紙，裝幀成私人電子書庫</span><span data-en>Bind your own paper into a personal library</span></div>
+      <div class="mock-btns">
+        <span class="mock-btn line"><span data-zh>選擇 PDF…</span><span data-en>Choose PDF…</span></span>
+        <span class="mock-btn fill"><span data-zh>存成 EPUB…</span><span data-en>Save EPUB…</span></span>
+      </div>
+      <div class="mock-label"><span data-zh>書名／標題</span><span data-en>Title</span></div>
+      <div class="mock-field">我的研究筆記 2024</div>
+      <div class="mock-label"><span data-zh>作者／來源（選填）</span><span data-en>Author / source (optional)</span></div>
+      <div class="mock-field" style="color:rgba(255,255,255,0.55)">—</div>
+      <div class="mock-meta"><span data-zh>共 312 頁 · 文字頁 298 · 圖片頁 14 · 辨識 186k 字</span><span data-en>312 pages · 298 text · 14 image · 186k chars recognized</span></div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2 class="section-title"><span data-zh>為什麼用 Reepub</span><span data-en>Why Reepub</span></h2>
+      <p class="section-lead">
+        <span data-zh>多數「PDF 轉 EPUB」工具不是上傳雲端、按頁收費，就是吐出一堆圖片拼成的固定版面。Reepub 不一樣。</span>
+        <span data-en>Most "PDF to EPUB" tools upload to a cloud, charge per page, or spit out image-glued fixed layouts. Reepub is different.</span>
+      </p>
+      <div class="features">
+        <div class="card">
+          <div class="ic">🔒</div>
+          <h3><span data-zh>完全離線</span><span data-en>100% offline</span></h3>
+          <p><span data-zh>沒有 API key、沒有訂閱、沒有網路。你的文件永遠不離開這台 Mac。</span><span data-en>No API keys, no subscriptions, no internet. Your files never leave your Mac.</span></p>
+        </div>
+        <div class="card">
+          <div class="ic">🧠</div>
+          <h3><span data-zh>Apple Vision OCR</span><span data-en>Apple Vision OCR</span></h3>
+          <p><span data-zh>在 Apple Silicon 上由 Neural Engine 加速，又快又準。</span><span data-en>Neural-Engine-accelerated on Apple Silicon — fast and accurate.</span></p>
+        </div>
+        <div class="card">
+          <div class="ic">📖</div>
+          <h3><span data-zh>真正可重排</span><span data-en>Truly reflowable</span></h3>
+          <p><span data-zh>文字重組成真正的段落與章節，在任何螢幕尺寸自動重排，不是凍結的頁面圖片。</span><span data-en>Text is rebuilt into real paragraphs and chapters that reflow on any screen — not frozen page images.</span></p>
+        </div>
+        <div class="card">
+          <div class="ic">🀄</div>
+          <h3><span data-zh>繁中 + 英文</span><span data-en>zh-Hant + English</span></h3>
+          <p><span data-zh>內建繁體中文與英文辨識（zh-Hant + en-US）。</span><span data-en>Traditional Chinese and English recognition out of the box.</span></p>
+        </div>
+        <div class="card">
+          <div class="ic">✅</div>
+          <h3><span data-zh>驗證過的 EPUB3</span><span data-en>Validated EPUB3</span></h3>
+          <p><span data-zh>每本書交回前都通過內建、零依賴的結構驗證器；自動封面、章節、圖文混排頁。</span><span data-en>Every book passes a built-in, dependency-free validator. Auto cover, chapters, hybrid text/image pages.</span></p>
+        </div>
+        <div class="card">
+          <div class="ic">⚖️</div>
+          <h3><span data-zh>MIT 開源</span><span data-en>MIT open source</span></h3>
+          <p><span data-zh>自包含、可自由 fork、永遠免費。</span><span data-en>Self-contained, forkable, free forever.</span></p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="get">
+    <div class="wrap">
+      <h2 class="section-title"><span data-zh>開始使用</span><span data-en>Get started</span></h2>
+      <p class="section-lead">
+        <span data-zh>Reepub 從原始碼建置，只需 Xcode Command Line Tools，不需要完整的 Xcode。</span>
+        <span data-en>Reepub builds from source with just the Xcode Command Line Tools — no full Xcode needed.</span>
+      </p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-head">
+            <span class="step-badge"><span data-zh>推薦</span><span data-en>Recommended</span></span>
+            <h3><span data-zh>原生 macOS App</span><span data-en>Native macOS app</span></h3>
+          </div>
+          <p><span data-zh>選一份 PDF（或拖進視窗），讓 OCR 跑完，填入書名與作者，按「存成 EPUB…」。OCR、組裝與驗證全在 App 內完成。</span><span data-en>Pick a PDF (or drag it in), let OCR run, set a title and author, then "Save EPUB…". OCR, assembly and validation all happen inside the app.</span></p>
+<pre><span class="c"># <span data-zh>建置並開啟原生 App</span><span data-en>build &amp; open the native app</span></span>
+git clone https://github.com/CVERInc/reepub.git
+cd reepub
+make app
+open macos/build/Reepub.app</pre>
+        </div>
+        <div class="step">
+          <div class="step-head">
+            <span class="step-badge">B</span>
+            <h3><span data-zh>本機網頁介面</span><span data-en>Local web UI</span></h3>
+          </div>
+          <p><span data-zh>在 localhost 開啟拖放介面，轉換日誌即時串流。</span><span data-en>A drag-and-drop UI on localhost with a live-streaming conversion log.</span></p>
+<pre>make build   <span class="c"># <span data-zh>編譯 Swift OCR CLI</span><span data-en>compile the Swift OCR CLI</span></span>
+npm start    <span class="c"># http://localhost:30232</span></pre>
+        </div>
+        <div class="step">
+          <div class="step-head">
+            <span class="step-badge">C</span>
+            <h3><span data-zh>命令列</span><span data-en>Command line</span></h3>
+          </div>
+          <p><span data-zh>適合腳本與批次處理。</span><span data-en>For scripting and batch processing.</span></p>
+<pre>make build
+node src/builder.js input.pdf output.epub "<span data-zh>書名</span><span data-en>Title</span>" "<span data-zh>作者</span><span data-en>Author</span>"</pre>
+        </div>
+      </div>
+      <p class="reqs">
+        <span data-zh>需求：macOS 13+（強烈建議 Apple Silicon）· Xcode Command Line Tools · Node.js v12+（僅網頁／CLI 需要）</span>
+        <span data-en>Requirements: macOS 13+ (Apple Silicon strongly recommended) · Xcode Command Line Tools · Node.js v12+ (web/CLI only)</span>
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="ethos">
+        <h2 class="section-title" style="font-size:1.4rem;margin-bottom:14px;"><span data-zh>我們的立場</span><span data-en>Where we stand</span></h2>
+        <p>
+          <span data-zh>Reepub 是用來數位化<strong>你擁有、或有權數位化的文件</strong>的工具，把它們裝幀成留在本機的私人電子書庫。一切都在你自己的 Mac 上處理，不會上傳。請尊重著作權與作者、出版者的權利。</span>
+          <span data-en>Reepub is for digitizing <strong>documents you own or have the right to digitize</strong>, into a personal ebook library you keep locally. Everything is processed on your own Mac; nothing is uploaded. Please respect copyright and the rights of authors and publishers.</span>
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="foot-links">
+      <a href="https://github.com/CVERInc/reepub" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://cver.net/oss" target="_blank" rel="noopener">CVER OSS</a>
+      <a href="https://github.com/CVERInc/reepub/blob/main/LICENSE" target="_blank" rel="noopener">MIT License</a>
+    </div>
+    <div>© 2026 CVER Inc. · <span data-zh>MIT 授權 · 在你的 Mac 上原生執行，完全離線</span><span data-en>MIT licensed · runs natively on your Mac, fully offline</span></div>
+  </footer>
+
+  <script>
+    (function () {
+      var btn = document.getElementById('langBtn');
+      btn.addEventListener('click', function () {
+        var en = document.body.classList.toggle('en');
+        document.documentElement.lang = en ? 'en' : 'zh-Hant';
+        btn.textContent = en ? '中' : 'EN';
+      });
+    })();
+  </script>
+</body>
+</html>
