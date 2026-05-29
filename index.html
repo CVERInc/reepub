@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Reepub — 把你的紙，裝幀成私人電子書庫</title>
   <meta name="description" content="100% offline macOS tool that turns scanned PDFs you own into reflowable, validated EPUB3 books using Apple Vision OCR. 完全離線的 macOS 工具，把你擁有的掃描 PDF 裝幀成可重排、已驗證的 EPUB3。">
   <meta property="og:title" content="Reepub — turn your own paper into a personal library of ebooks">
@@ -463,5 +463,8 @@ node src/builder.js input.pdf output.epub "<span data-zh>書名</span><span data
       });
     })();
   </script>
+
+  <!-- CVER OSS house package: zero-config iOS Safari chrome tinting. -->
+  <script type="module">import 'https://esm.sh/bleedblend@2.1.0/auto';</script>
 </body>
 </html>
