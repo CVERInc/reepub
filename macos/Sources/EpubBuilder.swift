@@ -175,7 +175,9 @@ enum EpubBuilder {
     // MARK: Build
 
     /// Build a validated EPUB3 from OCR'd pages and write it to `outputURL`.
-    static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL) throws {
+    /// `progress` reports the current stage (called on a background queue).
+    static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL,
+                      progress: ((String) -> Void)? = nil) throws {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("reepub-build-\(UUID().uuidString)")
         let oebps = tempDir.appendingPathComponent("OEBPS")
@@ -199,6 +201,7 @@ enum EpubBuilder {
                                atomically: true, encoding: .utf8)
 
             // Cover (page 0)
+            progress?("寫入封面與圖片頁…")
             var hasCover = false
             if let first = pages.first?.image, let data = jpegData(from: first) {
                 try data.write(to: imagesDir.appendingPathComponent("cover.jpeg"))
@@ -218,6 +221,7 @@ enum EpubBuilder {
             }
 
             // Per-chapter XHTML
+            progress?("寫入 \(chapters.count) 個章節…")
             struct ManifestItem { let id: String; let title: String; let href: String }
             var manifestChapters: [ManifestItem] = []
 
@@ -273,9 +277,11 @@ enum EpubBuilder {
                        atomically: true, encoding: .utf8)
 
             // Validate well-formedness of generated XML before packaging.
+            progress?("驗證 XML…")
             try validateXML(in: oebps)
 
             // Package: mimetype stored (uncompressed) first, then the rest deflated.
+            progress?("打包 EPUB…")
             if fm.fileExists(atPath: outputURL.path) {
                 try fm.removeItem(at: outputURL)
             }

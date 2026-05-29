@@ -31,6 +31,9 @@ final class ReepubModel: ObservableObject {
     @Published var preview = ""
     @Published var canSave = false
     @Published var savedURL: URL?
+    @Published var isDropTargeted = false
+    @Published var bookTitle = ""
+    @Published var bookAuthor = ""
 
     private var pages: [OCRPage] = []
     private var sourceName = "book"
@@ -44,6 +47,14 @@ final class ReepubModel: ObservableObject {
         runOCR(url: url)
     }
 
+    func handleDroppedPDF(_ url: URL) {
+        guard url.pathExtension.lowercased() == "pdf" else {
+            status = "請拖入 PDF 檔案"
+            return
+        }
+        runOCR(url: url)
+    }
+
     private func runOCR(url: URL) {
         isProcessing = true
         canSave = false
@@ -52,6 +63,8 @@ final class ReepubModel: ObservableObject {
         preview = ""
         pages = []
         sourceName = url.deletingPathExtension().lastPathComponent
+        bookTitle = sourceName
+        bookAuthor = ""
         status = "辨識中…"
         progressText = ""
 
@@ -85,16 +98,20 @@ final class ReepubModel: ObservableObject {
 
     func saveEpub() {
         guard !pages.isEmpty else { return }
+        let title = bookTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        let effectiveTitle = title.isEmpty ? sourceName : title
+
         let panel = NSSavePanel()
         if let epubType = UTType(filenameExtension: "epub") {
             panel.allowedContentTypes = [epubType]
         }
-        panel.nameFieldStringValue = "\(sourceName).epub"
+        panel.nameFieldStringValue = "\(effectiveTitle).epub"
         panel.canCreateDirectories = true
         panel.message = "選擇 EPUB 儲存位置"
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
-        let metadata = EpubMetadata(title: url.deletingPathExtension().lastPathComponent, author: "")
+        let metadata = EpubMetadata(title: effectiveTitle,
+                                    author: bookAuthor.trimmingCharacters(in: .whitespacesAndNewlines))
         let pagesCopy = pages
         isProcessing = true
         savedURL = nil
@@ -102,7 +119,9 @@ final class ReepubModel: ObservableObject {
 
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                try EpubBuilder.build(pages: pagesCopy, metadata: metadata, outputURL: url)
+                try EpubBuilder.build(pages: pagesCopy, metadata: metadata, outputURL: url) { stage in
+                    Task { @MainActor in self?.progressText = stage }
+                }
                 await self?.saveFinished(url: url)
             } catch {
                 await self?.fail(error)
@@ -118,6 +137,7 @@ final class ReepubModel: ObservableObject {
     private func saveFinished(url: URL) {
         savedURL = url
         status = "已儲存：\(url.lastPathComponent)"
+        progressText = ""
         isProcessing = false
     }
 
@@ -159,6 +179,12 @@ struct ContentView: View {
                 .opacity(model.isProcessing ? 0.55 : 1)
                 .padding(.top, 6)
 
+                if !model.canSave && !model.isProcessing {
+                    Text("或將 PDF 拖放到視窗")
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+
                 if model.isProcessing {
                     ProgressView().controlSize(.small).tint(.white)
                 }
@@ -179,6 +205,16 @@ struct ContentView: View {
                         .foregroundStyle(Brand.mint)
                 }
 
+                if model.canSave {
+                    VStack(spacing: 10) {
+                        field("書名／標題", text: $model.bookTitle, placeholder: "預設使用檔名")
+                        field("作者／來源（選填）", text: $model.bookAuthor, placeholder: "可留空")
+                    }
+                    .frame(maxWidth: 360)
+                    .disabled(model.isProcessing)
+                    .padding(.top, 2)
+                }
+
                 if let summary = model.summary {
                     Text(summary)
                         .font(.system(size: 13, design: .rounded))
@@ -194,7 +230,7 @@ struct ContentView: View {
                             .textSelection(.enabled)
                             .padding(12)
                     }
-                    .frame(height: 170)
+                    .frame(height: 150)
                     .background(.white.opacity(0.05))
                     .overlay(
                         RoundedRectangle(cornerRadius: 18)
@@ -205,7 +241,34 @@ struct ContentView: View {
             }
             .padding(40)
         }
-        .frame(width: 560, height: 620)
+        .frame(width: 560, height: 660)
+        .overlay {
+            if model.isDropTargeted {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(Brand.mint, style: StrokeStyle(lineWidth: 3, dash: [10, 6]))
+                    .padding(8)
+            }
+        }
+        .dropDestination(for: URL.self) { urls, _ in
+            guard let url = urls.first(where: { $0.pathExtension.lowercased() == "pdf" }) else { return false }
+            model.handleDroppedPDF(url)
+            return true
+        } isTargeted: { model.isDropTargeted = $0 }
+    }
+
+    private func field(_ label: String, text: Binding<String>, placeholder: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.7))
+            TextField(placeholder, text: text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14, design: .rounded))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        }
     }
 
     private func pillButton(title: String, systemImage: String,
