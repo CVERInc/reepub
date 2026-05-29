@@ -6,6 +6,7 @@ struct ReepubApp: App {
         WindowGroup("Reepub") {
             ContentView()
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
     }
 }

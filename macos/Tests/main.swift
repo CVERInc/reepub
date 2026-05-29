@@ -15,7 +15,7 @@ func makeTestPDF(at url: URL) throws {
     NSGraphicsContext.saveGraphicsState()
     NSGraphicsContext.current = ns
 
-    let text = "Reepub 測試文件\n第一章 開始\nHello World 你好世界\n這是一段用來驗證 OCR 的中文測試文字。"
+    let text = "Reepub 測試文件\n第一章 開始\nHello World 你好世界\n這是一段用來驗證 OCR 的中文測試文字，內容刻意寫長一點，確保整頁辨識出來的字數超過一百二十字的門檻，這樣這一頁就會被判定為文字頁而不是圖片頁，於是組裝 EPUB 時就會真的產生章節的 XHTML 檔案，讓我們能夠驗證文字章節這條路徑確實有效運作。"
     let attrs: [NSAttributedString.Key: Any] = [
         .font: NSFont.systemFont(ofSize: 30),
         .foregroundColor: NSColor.black,
@@ -51,10 +51,23 @@ for expected in expectations {
     if !ok { failures += 1 }
 }
 
+// Build an EPUB from the OCR'd pages and report where it landed.
+let epubURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("reepub-selftest.epub")
+do {
+    try EpubBuilder.build(pages: pages,
+                          metadata: EpubMetadata(title: "Reepub 自我測試", author: "CVER"),
+                          outputURL: epubURL)
+    let size = (try? FileManager.default.attributesOfItem(atPath: epubURL.path)[.size] as? Int) ?? 0
+    print("\nEPUB built: \(epubURL.path) (\(size) bytes)")
+} catch {
+    print("\n[FAILURE] EPUB build failed: \(error.localizedDescription)")
+    failures += 1
+}
+
 if failures == 0 {
-    print("\n[SUCCESS] OCR self-test passed.")
+    print("\n[SUCCESS] OCR + EPUB self-test passed.")
     exit(0)
 } else {
-    print("\n[FAILURE] \(failures) expected string(s) not recognized.")
+    print("\n[FAILURE] \(failures) issue(s).")
     exit(1)
 }
