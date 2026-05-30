@@ -11,6 +11,10 @@
 
 **No API keys · No subscriptions · No internet · Your files never leave your machine.**
 
+> **reepub isn't a "PDF→EPUB converter" — it's a capability you _own_.** Studio-grade OCR that lives on your shelf, not in someone's cloud. Every cloud scan-to-ebook service makes you upload your books to a stranger's server, pay per page, and leaves the result in *their* account. reepub inverts all of it: **free, offline, yours.**
+>
+> **reepub 不是「PDF 轉 EPUB 工具」，而是一項你「擁有」的能力。** 媲美付費雲端的 OCR，放在你自己的書架上，而不是別人的雲端。每一套雲端掃描轉電子書服務，都要你把書上傳到陌生人的伺服器、按頁付費，成品還留在「他們的」帳號裡。reepub 把這一切反轉：**免費、離線、屬於你。**
+
 > **What reepub is for.** reepub is a tool for digitizing documents **you own or have the right to digitize** — your own writing, notes and correspondence, public-domain works, or books you physically own — into a personal ebook library you keep locally. Everything is processed on your own Mac; nothing is ever uploaded. Please respect copyright and the rights of authors and publishers.
 
 [**English**](#english) ・ [**繁體中文**](#繁體中文)
@@ -24,16 +28,25 @@
 You've got paper worth keeping — your own notes, a stack of letters, an
 out-of-print book you own. Most "PDF to EPUB" tools either upload it to a cloud
 service, charge per page, or spit out a fixed-layout EPUB that's really just
-images glued together — unreadable on a phone. `reepub` is different:
+images glued together — unreadable on a phone. `reepub` is different — and the
+difference is ownership:
 
-- **Runs entirely on your Mac** via Apple's [Vision](https://developer.apple.com/documentation/vision)
-  framework. Your documents never leave your machine.
-- **Neural Engine accelerated** on Apple Silicon (M1–M4+) for fast, high-quality OCR.
-- **Reflowable output** — text is reconstructed into real paragraphs and chapters,
-  so it reflows on any screen size, not a frozen page image.
+- **You own it — you don't rent it.** Cloud OCR is a borrowed library card:
+  revocable, priced per page, and your files pass through someone else's servers.
+  `reepub` is the book on your own shelf — free, offline, and *yours*; no one can
+  reprice it, gate it, or switch it off.
+- **Frontier-quality OCR you already paid for.** It unlocks Apple's
+  [Vision](https://developer.apple.com/documentation/vision) framework and the
+  Neural Engine already in your Mac (M1–M4+) — so a tiny MIT tool matches *paid*
+  cloud OCR, fully on-device.
+- **Reflowable output, not image-glued fake EPUB** — text is reconstructed into
+  real paragraphs and chapters, so it reflows on any screen size, not a frozen
+  page image.
+- **There is no pipe.** No API key, no account, no network call — your books
+  *physically cannot* leave the machine. Privacy that's structural, not a promise.
 - **Traditional Chinese & English** recognition out of the box (`zh-Hant` + `en-US`).
 - **Validated EPUB3** — every book is run through a built-in, dependency-free
-  structural validator before it's handed back to you.
+  structural validator before it's handed back; one that fails is rejected, not shipped.
 - **MIT-licensed**, self-contained, forkable, free forever.
 
 ### Features
@@ -135,15 +148,21 @@ MIT — see [LICENSE](LICENSE). © 2026 CVER Inc.
 
 你有想留下來的紙 —— 自己的筆記、一疊信件、一本你擁有的絕版書。市面上多數
 「PDF 轉 EPUB」工具不是把它上傳到雲端、按頁收費，就是吐出一份其實只是圖片
-拼起來的固定版面 EPUB —— 在手機上根本沒法讀。`reepub` 不一樣：
+拼起來的固定版面 EPUB —— 在手機上根本沒法讀。`reepub` 不一樣 —— 差別在於「擁有」：
 
-- **完全在你的 Mac 上執行**，使用 Apple 的 [Vision](https://developer.apple.com/documentation/vision)
-  框架，你的文件不會離開你的電腦。
-- 在 Apple Silicon（M1–M4+）上由 **Neural Engine 加速**，OCR 又快又準。
-- **可重排版面** —— 文字會被重組成真正的段落與章節，能在任何螢幕尺寸自動重排，
-  而不是凍結的頁面圖片。
+- **你擁有它，而不是租用它。** 雲端 OCR 是一張借來的圖書證：可被收回、按頁計費，
+  你的檔案還得經過別人的伺服器。`reepub` 是放在你自己書架上的那本書 —— 免費、離線、
+  *屬於你*；沒人能改價、設限或把它關掉。
+- **媲美付費雲端、而你早已付過費的 OCR。** 它解鎖了 Apple 的
+  [Vision](https://developer.apple.com/documentation/vision) 框架，以及你 Mac
+  （M1–M4+）裡本就存在的 Neural Engine —— 一個小小的 MIT 工具，就能在本機追平*付費*雲端 OCR。
+- **真正可重排，而非圖片拼貼的假 EPUB** —— 文字會被重組成真正的段落與章節，
+  能在任何螢幕尺寸自動重排，而不是凍結的頁面圖片。
+- **沒有任何一條管線通向外面。** 沒有 API key、沒有帳號、沒有任何網路請求 ——
+  你的書*在物理上就無法*離開這台機器。這是結構性的隱私，不是一句承諾。
 - 內建 **繁體中文與英文** 辨識（`zh-Hant` + `en-US`）。
-- **驗證過的 EPUB3** —— 每本書交回給你之前，都會經過內建、零依賴的結構驗證器檢查。
+- **驗證過的 EPUB3** —— 每本書交回給你之前，都會經過內建、零依賴的結構驗證器檢查；
+  驗證不過的書會被拒絕，不會交付。
 - **MIT 授權**、自包含、可自由 fork、永遠免費。
 
 ### 特色

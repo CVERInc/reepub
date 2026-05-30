@@ -17,6 +17,9 @@ enum Chapter {
     case image(title: String, imageRelPath: String, pageIndex: Int)
 }
 
+/// EPUB build failures. The associated value carries the underlying detail; the
+/// localized message is composed at the UI layer (ContentView) so this type
+/// stays free of presentation/locale concerns.
 enum EpubError: LocalizedError {
     case zipFailed(String)
     case validation(String)
@@ -24,11 +27,20 @@ enum EpubError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .zipFailed(let m): return "EPUB 打包失敗：\(m)"
-        case .validation(let m): return "EPUB 驗證失敗：\(m)"
-        case .io(let m): return "檔案寫入失敗：\(m)"
+        case .zipFailed(let m): return "EPUB packaging failed: \(m)"
+        case .validation(let m): return "EPUB validation failed: \(m)"
+        case .io(let m): return "Failed to write file: \(m)"
         }
     }
+}
+
+/// A structured build-progress stage emitted by `EpubBuilder.build`. The UI
+/// renders these into localized, count-aware status text.
+enum BuildStage {
+    case writingCover
+    case writingChapters(Int)
+    case validatingXML
+    case packaging
 }
 
 private extension Character {
@@ -177,7 +189,7 @@ enum EpubBuilder {
     /// Build a validated EPUB3 from OCR'd pages and write it to `outputURL`.
     /// `progress` reports the current stage (called on a background queue).
     static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL,
-                      progress: ((String) -> Void)? = nil) throws {
+                      progress: ((BuildStage) -> Void)? = nil) throws {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("reepub-build-\(UUID().uuidString)")
         let oebps = tempDir.appendingPathComponent("OEBPS")
@@ -201,7 +213,7 @@ enum EpubBuilder {
                                atomically: true, encoding: .utf8)
 
             // Cover (page 0)
-            progress?("寫入封面與圖片頁…")
+            progress?(.writingCover)
             var hasCover = false
             if let first = pages.first?.image, let data = jpegData(from: first) {
                 try data.write(to: imagesDir.appendingPathComponent("cover.jpeg"))
@@ -221,7 +233,7 @@ enum EpubBuilder {
             }
 
             // Per-chapter XHTML
-            progress?("寫入 \(chapters.count) 個章節…")
+            progress?(.writingChapters(chapters.count))
             struct ManifestItem { let id: String; let title: String; let href: String }
             var manifestChapters: [ManifestItem] = []
 
@@ -277,11 +289,11 @@ enum EpubBuilder {
                        atomically: true, encoding: .utf8)
 
             // Validate well-formedness of generated XML before packaging.
-            progress?("驗證 XML…")
+            progress?(.validatingXML)
             try validateXML(in: oebps)
 
             // Package: mimetype stored (uncompressed) first, then the rest deflated.
-            progress?("打包 EPUB…")
+            progress?(.packaging)
             if fm.fileExists(atPath: outputURL.path) {
                 try fm.removeItem(at: outputURL)
             }

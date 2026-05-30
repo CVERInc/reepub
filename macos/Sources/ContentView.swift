@@ -25,7 +25,7 @@ enum Brand {
 @MainActor
 final class ReepubModel: ObservableObject {
     @Published var isProcessing = false
-    @Published var status = "選一個 PDF 開始"
+    @Published var status = ""
     @Published var progressText = ""
     @Published var summary: String?
     @Published var preview = ""
@@ -37,19 +37,65 @@ final class ReepubModel: ObservableObject {
 
     private var pages: [OCRPage] = []
     private var sourceName = "book"
+    private let loc: Localizer
+
+    // Raw building blocks so localized text can be re-rendered when the
+    // language changes mid-session (the @Published `status`/`summary` strings
+    // are recomputed from these by `relocalize()`).
+    private enum StatusState {
+        case start, recognizing, ocrDone, assembling
+        case saved(String)
+        case droppedNonPDF
+        case error(String)
+    }
+    private var statusState: StatusState = .start
+    private var ocrCounts: (pages: Int, text: Int, image: Int, chars: Int)?
+
+    init(loc: Localizer) {
+        self.loc = loc
+        self.status = loc(.statusStart)
+    }
+
+    /// Re-render all localized model output for the current language.
+    func relocalize() {
+        switch statusState {
+        case .start:         status = loc(.statusStart)
+        case .recognizing:   status = loc(.statusRecognizing)
+        case .ocrDone:       status = loc(.statusOCRDone)
+        case .assembling:    status = loc(.statusAssembling)
+        case .saved(let n):  status = loc(.statusSavedPrefix) + n
+        case .droppedNonPDF: status = loc(.statusDropPDF)
+        case .error(let m):  status = loc(.statusErrorPrefix) + m
+        }
+        if let c = ocrCounts {
+            summary = summaryText(name: sourceName, c: c)
+        }
+    }
+
+    private func summaryText(name: String,
+                             c: (pages: Int, text: Int, image: Int, chars: Int)) -> String {
+        let parts = [
+            String(format: loc(.summaryTotalPages), c.pages),
+            String(format: loc(.summaryTextPages), c.text),
+            String(format: loc(.summaryImagePages), c.image),
+            String(format: loc(.summaryChars), c.chars),
+        ]
+        return "\(name)\n" + parts.joined(separator: " · ")
+    }
 
     func pickPDF() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = false
-        panel.message = "選擇要數位化的 PDF（你擁有或有權數位化的檔案）"
+        panel.message = loc(.openPanelMessage)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         runOCR(url: url)
     }
 
     func handleDroppedPDF(_ url: URL) {
         guard url.pathExtension.lowercased() == "pdf" else {
-            status = "請拖入 PDF 檔案"
+            statusState = .droppedNonPDF
+            status = loc(.statusDropPDF)
             return
         }
         runOCR(url: url)
@@ -60,20 +106,25 @@ final class ReepubModel: ObservableObject {
         canSave = false
         savedURL = nil
         summary = nil
+        ocrCounts = nil
         preview = ""
         pages = []
         sourceName = url.deletingPathExtension().lastPathComponent
         bookTitle = sourceName
         bookAuthor = ""
-        status = "辨識中…"
+        statusState = .recognizing
+        status = loc(.statusRecognizing)
         progressText = ""
 
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 let pages = try OCREngine.recognize(pdfURL: url) { current, total in
-                    Task { @MainActor in self?.progressText = "OCR 第 \(current)/\(total) 頁…" }
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.progressText = String(format: self.loc(.progressOCRPage), current, total)
+                    }
                 }
-                await self?.ocrFinished(pages: pages, name: url.lastPathComponent)
+                await self?.ocrFinished(pages: pages, name: url.deletingPathExtension().lastPathComponent)
             } catch {
                 await self?.fail(error)
             }
@@ -86,11 +137,14 @@ final class ReepubModel: ObservableObject {
         let imagePages = pages.filter { $0.type == "image" }.count
         let totalChars = pages.reduce(0) { $0 + $1.lines.reduce(0) { $0 + $1.text.count } }
 
-        summary = "\(name)\n共 \(pages.count) 頁 · 文字頁 \(textPages) · 圖片頁 \(imagePages) · 辨識 \(totalChars) 字"
+        let counts = (pages: pages.count, text: textPages, image: imagePages, chars: totalChars)
+        ocrCounts = counts
+        summary = summaryText(name: name, c: counts)
         if let firstText = pages.first(where: { $0.type == "text" }) {
             preview = firstText.lines.prefix(14).map { $0.text }.joined(separator: "\n")
         }
-        status = "辨識完成 — 可存成 EPUB"
+        statusState = .ocrDone
+        status = loc(.statusOCRDone)
         progressText = ""
         canSave = true
         isProcessing = false
@@ -107,7 +161,7 @@ final class ReepubModel: ObservableObject {
         }
         panel.nameFieldStringValue = "\(effectiveTitle).epub"
         panel.canCreateDirectories = true
-        panel.message = "選擇 EPUB 儲存位置"
+        panel.message = loc(.savePanelMessage)
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         let metadata = EpubMetadata(title: effectiveTitle,
@@ -115,17 +169,30 @@ final class ReepubModel: ObservableObject {
         let pagesCopy = pages
         isProcessing = true
         savedURL = nil
-        status = "組裝 EPUB 中…"
+        statusState = .assembling
+        status = loc(.statusAssembling)
 
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
                 try EpubBuilder.build(pages: pagesCopy, metadata: metadata, outputURL: url) { stage in
-                    Task { @MainActor in self?.progressText = stage }
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.progressText = self.stageText(stage)
+                    }
                 }
                 await self?.saveFinished(url: url)
             } catch {
                 await self?.fail(error)
             }
+        }
+    }
+
+    private func stageText(_ stage: BuildStage) -> String {
+        switch stage {
+        case .writingCover:          return loc(.stageWritingCover)
+        case .writingChapters(let n): return String(format: loc(.stageWritingChapters), n)
+        case .validatingXML:         return loc(.stageValidatingXML)
+        case .packaging:             return loc(.stagePackaging)
         }
     }
 
@@ -136,20 +203,45 @@ final class ReepubModel: ObservableObject {
 
     private func saveFinished(url: URL) {
         savedURL = url
-        status = "已儲存：\(url.lastPathComponent)"
+        statusState = .saved(url.lastPathComponent)
+        status = loc(.statusSavedPrefix) + url.lastPathComponent
         progressText = ""
         isProcessing = false
     }
 
     private func fail(_ error: Error) {
-        status = "錯誤：\(error.localizedDescription)"
+        let message = localizedErrorMessage(error)
+        statusState = .error(message)
+        status = loc(.statusErrorPrefix) + message
         progressText = ""
         isProcessing = false
+    }
+
+    /// Map structured engine errors to localized, formatted messages; fall back
+    /// to the system-provided description for anything else.
+    private func localizedErrorMessage(_ error: Error) -> String {
+        switch error {
+        case OCRError.cannotOpenPDF(let name):
+            return String(format: loc(.errorCannotOpenPDF), name)
+        case EpubError.zipFailed(let m):
+            return String(format: loc(.errorZipFailed), m)
+        case EpubError.validation(let m):
+            return String(format: loc(.errorValidation), m)
+        case EpubError.io(let m):
+            return String(format: loc(.errorIO), m)
+        default:
+            return error.localizedDescription
+        }
     }
 }
 
 struct ContentView: View {
-    @StateObject private var model = ReepubModel()
+    @EnvironmentObject private var loc: Localizer
+    @StateObject private var model: ReepubModel
+
+    init(loc: Localizer) {
+        _model = StateObject(wrappedValue: ReepubModel(loc: loc))
+    }
 
     var body: some View {
         ZStack {
@@ -163,15 +255,15 @@ struct ContentView: View {
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.15), radius: 8, y: 2)
 
-                Text("把你的紙，裝幀成私人電子書庫")
+                Text(loc(.tagline))
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundStyle(.white.opacity(0.82))
 
                 HStack(spacing: 12) {
-                    pillButton(title: "選擇 PDF…", systemImage: "doc.viewfinder",
+                    pillButton(title: loc(.pickPDF), systemImage: "doc.viewfinder",
                                filled: !model.canSave, action: model.pickPDF)
                     if model.canSave {
-                        pillButton(title: "存成 EPUB…", systemImage: "books.vertical",
+                        pillButton(title: loc(.saveEpub), systemImage: "books.vertical",
                                    filled: true, action: model.saveEpub)
                     }
                 }
@@ -180,7 +272,7 @@ struct ContentView: View {
                 .padding(.top, 6)
 
                 if !model.canSave && !model.isProcessing {
-                    Text("或將 PDF 拖放到視窗")
+                    Text(loc(.dropHint))
                         .font(.system(size: 12, design: .rounded))
                         .foregroundStyle(.white.opacity(0.55))
                 }
@@ -199,7 +291,7 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
 
                 if model.savedURL != nil {
-                    Button("在 Finder 顯示", action: model.revealInFinder)
+                    Button(loc(.revealInFinder), action: model.revealInFinder)
                         .buttonStyle(.plain)
                         .font(.system(size: 13, weight: .semibold, design: .rounded))
                         .foregroundStyle(Brand.mint)
@@ -207,8 +299,10 @@ struct ContentView: View {
 
                 if model.canSave {
                     VStack(spacing: 10) {
-                        field("書名／標題", text: $model.bookTitle, placeholder: "預設使用檔名")
-                        field("作者／來源（選填）", text: $model.bookAuthor, placeholder: "可留空")
+                        field(loc(.fieldTitleLabel), text: $model.bookTitle,
+                              placeholder: loc(.fieldTitlePlaceholder))
+                        field(loc(.fieldAuthorLabel), text: $model.bookAuthor,
+                              placeholder: loc(.fieldAuthorPlaceholder))
                     }
                     .frame(maxWidth: 360)
                     .disabled(model.isProcessing)
@@ -240,6 +334,9 @@ struct ContentView: View {
                 }
             }
             .padding(40)
+
+            // Unobtrusive language switcher, top-trailing corner.
+            languagePicker
         }
         .frame(width: 560, height: 660)
         .overlay {
@@ -254,6 +351,47 @@ struct ContentView: View {
             model.handleDroppedPDF(url)
             return true
         } isTargeted: { model.isDropTargeted = $0 }
+        // When the language changes, re-render the model's already-emitted text.
+        .onChange(of: loc.language) { _ in model.relocalize() }
+    }
+
+    /// Compact glass-style language menu pinned to the window's top-trailing corner.
+    private var languagePicker: some View {
+        VStack {
+            HStack {
+                Spacer()
+                Menu {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Button {
+                            loc.language = lang
+                        } label: {
+                            if lang == loc.language {
+                                Label(lang.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(lang.displayName)
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "globe")
+                        Text(loc.language.displayName)
+                    }
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(.white.opacity(0.10), in: Capsule())
+                    .overlay(Capsule().stroke(.white.opacity(0.18), lineWidth: 1))
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(loc(.languageMenuLabel))
+            }
+            Spacer()
+        }
+        .padding(16)
     }
 
     private func field(_ label: String, text: Binding<String>, placeholder: String) -> some View {

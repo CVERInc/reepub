@@ -5,6 +5,7 @@ package-lock.json
 
 # Internal session handoff docs — do not publish.
 HANDOFF.md
+POSITIONING.md
 
 # Compiled Swift OCR binary (built via `make build`)
 bin/scan-ocr

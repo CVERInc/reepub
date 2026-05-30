@@ -20,11 +20,14 @@ struct OCRPage {
     var image: CGImage?
 }
 
+/// OCR failures. The associated value carries the offending name; the
+/// human-readable, localized message is produced at the UI layer (ContentView)
+/// so this type stays free of any presentation/locale concerns.
 enum OCRError: LocalizedError {
     case cannotOpenPDF(String)
     var errorDescription: String? {
         switch self {
-        case .cannotOpenPDF(let name): return "無法開啟 PDF：\(name)"
+        case .cannotOpenPDF(let name): return "Cannot open PDF: \(name)"
         }
     }
 }
