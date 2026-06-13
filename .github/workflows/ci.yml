@@ -1,0 +1,37 @@
+# CVER OSS shared delivery baseline — Node CI (dim 7).
+# Source template: ~/cver-oss-baseline/workflows/node-ci.yml
+# reepub builds a native Swift OCR CLI, so this runs on macOS.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: macos-latest # reepub is darwin-only (native Vision OCR / Swift)
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Test
+        run: npm test --if-present
+
+      - name: Build (Swift OCR CLI)
+        run: npm run build --if-present
+
+      - name: Release readiness
+        run: node scripts/check-release-readiness.mjs
