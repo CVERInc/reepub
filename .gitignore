@@ -29,3 +29,6 @@ bin/book-*.epub
 test-cover.epub
 bin/test-cover.epub
 test-unzip/
+
+# Web→EPUB experiment scratchpad — local only, never published.
+experiments/

@@ -13,7 +13,7 @@
 
 > **What reepub is for.** reepub is a tool for digitizing documents **you own or have the right to digitize** — your own writing, notes and correspondence, public-domain works, or books you physically own — into a personal ebook library you keep locally. Everything is processed on your own Mac; nothing is ever uploaded. Please respect copyright and the rights of authors and publishers.
 
-🌐 繁體中文介紹 → [cver.net/zh-tw/oss/reepub](https://cver.net/zh-tw/oss/reepub) ・ 日本語の紹介 → [cver.net/ja-jp/oss/reepub](https://cver.net/ja-jp/oss/reepub)
+🌐 [日本語](https://cver.net/ja-jp/oss/reepub) · [한국어](https://cver.net/ko-kr/oss/reepub) · [繁體中文](https://cver.net/zh-tw/oss/reepub)
 
 ---
 
@@ -50,7 +50,7 @@ difference is ownership:
 - **Automatic cover** — renders page 1 at 2× and wraps it as the EPUB cover.
 - **Hybrid text + image pages** — pages with little text (illustrations, plates)
   are preserved as images instead of garbled OCR.
-- **Automatic chapter detection** — splits on heading cues (第一章…、Chapter…).
+- **Automatic chapter detection** — splits on heading cues (e.g. `第一章`, `Chapter`).
 - **Three ways to use it** — a one-click Mac app, a local web UI, or a CLI.
 
 - Localized app UI — English / 繁體中文 / 日本語
@@ -60,7 +60,7 @@ difference is ownership:
 - **macOS** 13+ (Apple Silicon strongly recommended) for the native app
 - **Xcode Command Line Tools** — for the Swift compiler (`xcode-select --install`).
   No full Xcode required.
-- **Node.js** v12+ — *only* for the optional web UI / CLI path
+- **Node.js** v20+ — *only* for the optional web UI / CLI path
 - `zip` / `unzip` / `xmllint` — preinstalled on macOS
 
 ## Build
