@@ -327,10 +327,10 @@ struct ContentView: View {
                     .frame(height: 150)
                     .background(.white.opacity(0.05))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18)
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
                             .stroke(.white.opacity(0.08), lineWidth: 1)
                     )
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
             }
             .padding(40)
@@ -341,7 +341,7 @@ struct ContentView: View {
         .frame(width: 560, height: 660)
         .overlay {
             if model.isDropTargeted {
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(Brand.mint, style: StrokeStyle(lineWidth: 3, dash: [10, 6]))
                     .padding(8)
             }
@@ -405,7 +405,7 @@ struct ContentView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
-                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
     }
 
