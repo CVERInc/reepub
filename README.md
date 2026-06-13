@@ -3,7 +3,7 @@
 > Bind the paper you already own — notes, letters, manuscripts, public-domain works — into a personal library of clean, reflowable ebooks. Natively on your Mac, 100% offline.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2010.15%2B-black?logo=apple)](https://www.apple.com/macos/)
+[![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
 [![OCR: Apple Vision](https://img.shields.io/badge/OCR-Apple%20Vision-blue)](https://developer.apple.com/documentation/vision)
 [![EPUB: 3.0](https://img.shields.io/badge/EPUB-3.0-green)](https://www.w3.org/publishing/epub3/)
 
