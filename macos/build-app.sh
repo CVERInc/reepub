@@ -1,24 +1,22 @@
 #!/bin/bash
 # Build the native SwiftUI Reepub.app using Command Line Tools only (no Xcode).
+# The macOS app is an SwiftPM package (depends on Signet), so this builds via
+# `swift build` and bundles the release binary.
 set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$DIR/.." && pwd)"
 BUILD_DIR="$DIR/build"
 APP="$BUILD_DIR/Reepub.app"
-DEPLOY_TARGET="arm64-apple-macosx13.0"
 
 echo "→ Cleaning previous build"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
-echo "→ Compiling Swift sources"
-swiftc -O \
-  -parse-as-library \
-  -sdk "$(xcrun --show-sdk-path)" \
-  -target "$DEPLOY_TARGET" \
-  "$DIR"/Sources/*.swift \
-  -o "$APP/Contents/MacOS/Reepub"
+echo "→ Building (SwiftPM release)"
+( cd "$DIR" && swift build -c release --product ReepubApp )
+# Bundle executable is named "Reepub" to match Info.plist's CFBundleExecutable.
+cp "$DIR/.build/release/ReepubApp" "$APP/Contents/MacOS/Reepub"
 
 echo "→ Assembling bundle"
 cp "$DIR/Info.plist" "$APP/Contents/Info.plist"

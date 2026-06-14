@@ -1,4 +1,5 @@
 import SwiftUI
+import Signet
 
 @main
 struct ReepubApp: App {
@@ -8,6 +9,7 @@ struct ReepubApp: App {
         WindowGroup("Reepub") {
             ContentView(loc: loc)
                 .environmentObject(loc)
+                .cverTheme(ReefTheme())
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)

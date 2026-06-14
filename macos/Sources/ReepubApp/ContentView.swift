@@ -1,25 +1,16 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
+import ReepubCore
+import Signet
 
-// CVER OSS palette (from the bleedblend demo: --demo-grad-bot / --demo-belt / --demo-grad-top).
-extension Color {
-    init(hex: String) {
-        let cleaned = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
-        var rgb: UInt64 = 0
-        Scanner(string: cleaned).scanHexInt64(&rgb)
-        self.init(.sRGB,
-                  red: Double((rgb >> 16) & 0xff) / 255,
-                  green: Double((rgb >> 8) & 0xff) / 255,
-                  blue: Double(rgb & 0xff) / 255,
-                  opacity: 1)
-    }
-}
-
+// Palette via Signet (the shared design system): teal/mint single-source from
+// the reef tokens; darkTeal is a reepub-specific shade. Color(hex:) also comes
+// from Signet now.
 enum Brand {
-    static let teal = Color(hex: "#0a8c8e")
+    static let teal = Color.reefTeal
     static let darkTeal = Color(hex: "#084a4c")
-    static let mint = Color(hex: "#aceace")
+    static let mint = Color.reefMint
 }
 
 @MainActor

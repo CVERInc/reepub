@@ -4,28 +4,28 @@ import PDFKit
 import AppKit
 
 /// One recognized line of text with its normalized bounding box (y is bottom-up, 0...1).
-struct OCRLine {
-    let text: String
-    let x: Double
-    let y: Double
-    let width: Double
-    let height: Double
+public struct OCRLine {
+    public let text: String
+    public let x: Double
+    public let y: Double
+    public let width: Double
+    public let height: Double
 }
 
 /// One OCR'd PDF page. `type` is "text" or "image" (low-text pages kept as image plates).
-struct OCRPage {
-    let pageIndex: Int
-    let lines: [OCRLine]
-    let type: String
-    var image: CGImage?
+public struct OCRPage {
+    public let pageIndex: Int
+    public let lines: [OCRLine]
+    public let type: String
+    public var image: CGImage?
 }
 
 /// OCR failures. The associated value carries the offending name; the
 /// human-readable, localized message is produced at the UI layer (ContentView)
 /// so this type stays free of any presentation/locale concerns.
-enum OCRError: LocalizedError {
+public enum OCRError: LocalizedError {
     case cannotOpenPDF(String)
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .cannotOpenPDF(let name): return "Cannot open PDF: \(name)"
         }
@@ -34,7 +34,7 @@ enum OCRError: LocalizedError {
 
 /// Native Vision + PDFKit OCR. Mirrors the heuristics in src/main.swift so the
 /// app and the Node CLI stay in sync.
-enum OCREngine {
+public enum OCREngine {
     /// Render a PDF page to a bitmap at `scale`× on a white background.
     static func renderImage(from page: PDFPage, scale: CGFloat = 2.0) -> CGImage? {
         let bounds = page.bounds(for: .cropBox)
@@ -79,7 +79,7 @@ enum OCREngine {
 
     /// OCR every page of a PDF. `progress` is invoked with (current, total) on a
     /// background queue.
-    static func recognize(pdfURL: URL, progress: ((Int, Int) -> Void)? = nil) throws -> [OCRPage] {
+    public static func recognize(pdfURL: URL, progress: ((Int, Int) -> Void)? = nil) throws -> [OCRPage] {
         guard let doc = PDFDocument(url: pdfURL) else {
             throw OCRError.cannotOpenPDF(pdfURL.lastPathComponent)
         }

@@ -33,5 +33,10 @@ jobs:
       - name: Build (Swift OCR CLI)
         run: npm run build --if-present
 
+      # The native macOS app is now an SwiftPM package (depends on Signet).
+      # Build it and run the framework-free OCR→EPUB self-test.
+      - name: Build + self-test macOS app (SwiftPM)
+        run: cd macos && swift build && swift run ReepubSelfTest
+
       - name: Release readiness
         run: node scripts/check-release-readiness.mjs

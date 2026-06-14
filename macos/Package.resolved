@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "signet",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/CVERInc/signet",
+      "state" : {
+        "branch" : "main",
+        "revision" : "e29d6246c95da2dc61ade22e5b82ef340443b430"
+      }
+    }
+  ],
+  "version" : 2
+}

@@ -2,9 +2,13 @@ import Foundation
 import AppKit
 import CoreGraphics
 
-struct EpubMetadata {
-    var title: String
-    var author: String  // optional; empty omits <dc:creator>
+public struct EpubMetadata {
+    public var title: String
+    public var author: String  // optional; empty omits <dc:creator>
+    public init(title: String, author: String) {
+        self.title = title
+        self.author = author
+    }
 }
 
 struct Paragraph {
@@ -20,12 +24,12 @@ enum Chapter {
 /// EPUB build failures. The associated value carries the underlying detail; the
 /// localized message is composed at the UI layer (ContentView) so this type
 /// stays free of presentation/locale concerns.
-enum EpubError: LocalizedError {
+public enum EpubError: LocalizedError {
     case zipFailed(String)
     case validation(String)
     case io(String)
 
-    var errorDescription: String? {
+    public var errorDescription: String? {
         switch self {
         case .zipFailed(let m): return "EPUB packaging failed: \(m)"
         case .validation(let m): return "EPUB validation failed: \(m)"
@@ -36,7 +40,7 @@ enum EpubError: LocalizedError {
 
 /// A structured build-progress stage emitted by `EpubBuilder.build`. The UI
 /// renders these into localized, count-aware status text.
-enum BuildStage {
+public enum BuildStage {
     case writingCover
     case writingChapters(Int)
     case validatingXML
@@ -51,7 +55,7 @@ private extension Character {
 
 /// Ports the EPUB-assembly logic from src/builder.js so the native app produces
 /// the same reflowable EPUB3 as the Node CLI. Keep the heuristics in sync.
-enum EpubBuilder {
+public enum EpubBuilder {
 
     // MARK: Text reconstruction
 
@@ -188,7 +192,7 @@ enum EpubBuilder {
 
     /// Build a validated EPUB3 from OCR'd pages and write it to `outputURL`.
     /// `progress` reports the current stage (called on a background queue).
-    static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL,
+    public static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL,
                       progress: ((BuildStage) -> Void)? = nil) throws {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("reepub-build-\(UUID().uuidString)")
