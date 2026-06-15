@@ -35,6 +35,6 @@
     "convert": "node src/builder.js",
     "start": "node src/server.js",
     "validate": "node src/validator.js",
-    "test": "node src/test-validation.js"
+    "test": "node src/test-validation.js && node src/test-builder.js"
   }
 }

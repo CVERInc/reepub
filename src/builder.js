@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, execSync } = require('child_process');
 const { validateEpub } = require('./validator');
+const { escapeXML, escapeAttr, joinText, processPage } = require('./epub-text');
 
 // CLI Arguments
 const args = process.argv.slice(2);
@@ -71,92 +72,7 @@ try {
 
 console.log('\n--- Step 2: Processing OCR Layout and Reconstructing Text ---');
 
-// Smart string joiner for Chinese/English text
-function joinText(lines) {
-  let result = '';
-  for (let j = 0; j < lines.length; j++) {
-    const text = lines[j].text.trim();
-    if (result === '') {
-      result = text;
-      continue;
-    }
-    
-    const lastChar = result.slice(-1);
-    const firstChar = text.charAt(0);
-    
-    // Add space if joining two alphanumeric/Latin words
-    const lastIsLatin = /[a-zA-Z0-9]/.test(lastChar);
-    const firstIsLatin = /[a-zA-Z0-9]/.test(firstChar);
-    
-    if (lastIsLatin && firstIsLatin) {
-      result += ' ' + text;
-    } else {
-      result += text; // Chinese has no spaces
-    }
-  }
-  return result;
-}
-
-// Process single page into paragraphs
-function processPage(page) {
-  const lines = page.lines;
-  if (!lines || lines.length === 0) return [];
-  
-  // Filter out headers (top-most) and footers (bottom-most)
-  const filteredLines = lines.filter(line => {
-    // y-up normalized coordinates (0 = bottom, 1 = top)
-    if (line.y > 0.94) return false; // top header
-    if (line.y < 0.06) return false; // bottom footer/page number
-    return true;
-  });
-  
-  if (filteredLines.length === 0) return [];
-  
-  const avgHeight = filteredLines.reduce((sum, l) => sum + l.height, 0) / filteredLines.length;
-  
-  const paragraphs = [];
-  let currentParaLines = [];
-  
-  for (let j = 0; j < filteredLines.length; j++) {
-    const line = filteredLines[j];
-    if (currentParaLines.length === 0) {
-      currentParaLines.push(line);
-      continue;
-    }
-    
-    const prevLine = currentParaLines[currentParaLines.length - 1];
-    const gap = prevLine.y - (line.y + line.height);
-    
-    let isBreak = false;
-    
-    if (gap > avgHeight * 1.8) {
-      isBreak = true;
-    } else if (/[。！？?！」「””\.\!\?]$/.test(prevLine.text.trim()) && gap > avgHeight * 0.95) {
-      isBreak = true;
-    } else if (line.x - prevLine.x > 0.05) {
-      isBreak = true;
-    } else if (prevLine.height > avgHeight * 1.45 || line.height > avgHeight * 1.45) {
-      isBreak = true;
-    }
-    
-    if (isBreak) {
-      paragraphs.push(currentParaLines);
-      currentParaLines = [line];
-    } else {
-      currentParaLines.push(line);
-    }
-  }
-  if (currentParaLines.length > 0) {
-    paragraphs.push(currentParaLines);
-  }
-  
-  return paragraphs.map(pLines => {
-    const text = joinText(pLines);
-    // Heading heuristic: short length & large font height
-    const isHeading = pLines.length === 1 && pLines[0].height > avgHeight * 1.35 && text.length < 40;
-    return { text, isHeading };
-  });
-}
+// joinText / processPage live in ./epub-text so they can be unit-tested headlessly.
 
 // 5. Structure into chapters (incorporating hybrid text and image pages)
 const chapters = [];
@@ -285,22 +201,19 @@ chapters.forEach((ch, idx) => {
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>${ch.title}</title>
+  <title>${escapeXML(ch.title)}</title>
 </head>
 <body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff; oeb-page-head-margin: 0 !important; oeb-page-foot-margin: 0 !important; oeb-page-left-margin: 0 !important; oeb-page-right-margin: 0 !important;">
   <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
-    <img class="cover-image" src="../${ch.imagePath}" alt="${ch.title}" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
+    <img class="cover-image" src="../${ch.imagePath}" alt="${escapeAttr(ch.title)}" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
   </div>
 </body>
 </html>`;
   } else {
     // For standard text chapters
     const bodyContent = ch.paragraphs.map(p => {
-      const textEscaped = p.text
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
-        
+      const textEscaped = escapeXML(p.text);
+
       if (p.isHeading) {
         return `  <h2>${textEscaped}</h2>`;
       }
@@ -312,11 +225,11 @@ chapters.forEach((ch, idx) => {
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>${ch.title}</title>
+  <title>${escapeXML(ch.title)}</title>
   <link rel="stylesheet" href="../style.css" type="text/css" />
 </head>
 <body>
-  <h1>${ch.title}</h1>
+  <h1>${escapeXML(ch.title)}</h1>
   <hr />
 ${bodyContent}
 </body>
@@ -342,7 +255,7 @@ const coverXhtml = `<?xml version="1.0" encoding="UTF-8"?>
 </head>
 <body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff; oeb-page-head-margin: 0 !important; oeb-page-foot-margin: 0 !important; oeb-page-left-margin: 0 !important; oeb-page-right-margin: 0 !important;">
   <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
-    <img class="cover-image" src="images/cover.jpeg" alt="${bookTitle}" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
+    <img class="cover-image" src="images/cover.jpeg" alt="${escapeAttr(bookTitle)}" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
   </div>
 </body>
 </html>`;
@@ -350,7 +263,7 @@ fs.writeFileSync(path.join(OEBPS_DIR, 'cover.xhtml'), coverXhtml, 'utf8');
 
 // 9. Write index.xhtml (TOC page)
 const tocItems = manifestChapters.map(ch => {
-  return `    <li><a href="${ch.href}">${ch.title}</a></li>`;
+  return `    <li><a href="${escapeAttr(ch.href)}">${escapeXML(ch.title)}</a></li>`;
 }).join('\n');
 
 const indexXhtml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -358,7 +271,7 @@ const indexXhtml = `<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
 <head>
   <meta charset="UTF-8" />
-  <title>${bookTitle} - 目錄</title>
+  <title>${escapeXML(bookTitle)} - 目錄</title>
   <link rel="stylesheet" href="style.css" type="text/css" />
 </head>
 <body>
@@ -398,13 +311,13 @@ if (isCoverExist) {
 }
 
 const creatorMeta = bookAuthor
-  ? `\n    <dc:creator>${bookAuthor.replace(/&/g, '&amp;')}</dc:creator>`
+  ? `\n    <dc:creator>${escapeXML(bookAuthor)}</dc:creator>`
   : '';
 
 const contentOpf = `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="3.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:title>${bookTitle.replace(/&/g, '&amp;')}</dc:title>${creatorMeta}
+    <dc:title>${escapeXML(bookTitle)}</dc:title>${creatorMeta}
     <dc:language>zh-Hant</dc:language>
     <dc:identifier id="BookID">urn:uuid:ocr-book-${Date.now()}</dc:identifier>
     <meta property="dcterms:modified">${new Date().toISOString().substring(0, 19) + 'Z'}</meta>
@@ -429,8 +342,8 @@ fs.writeFileSync(path.join(OEBPS_DIR, 'content.opf'), contentOpf, 'utf8');
 // 11. Write toc.ncx
 const tocNavPoints = manifestChapters.map((ch, idx) => {
   return `    <navPoint id="navPoint-${ch.id}" playOrder="${idx + 2}">
-      <navLabel><text>${ch.title}</text></navLabel>
-      <content src="${ch.href}"/>
+      <navLabel><text>${escapeXML(ch.title)}</text></navLabel>
+      <content src="${escapeAttr(ch.href)}"/>
     </navPoint>`;
 }).join('\n');
 
@@ -443,7 +356,7 @@ const tocNcx = `<?xml version="1.0" encoding="UTF-8"?>
     <meta name="dtb:maxPageNumber" content="0"/>
   </head>
   <docTitle>
-    <text>${bookTitle}</text>
+    <text>${escapeXML(bookTitle)}</text>
   </docTitle>
   <navMap>
     <navPoint id="navPoint-index" playOrder="1">
