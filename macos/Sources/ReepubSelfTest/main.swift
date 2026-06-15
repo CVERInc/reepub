@@ -65,6 +65,30 @@ do {
     failures += 1
 }
 
+// --- XML-escaping regression test ---------------------------------------
+// A title/author with XML-special characters (&, <, >, ") must not produce
+// malformed OPF / NCX / XHTML. Build a tiny EPUB from a synthetic text page
+// using a hostile title and assert the build (which validates XML before
+// packaging) succeeds. Before the escaping fix this threw EpubError.validation.
+print("\nXML-escaping regression test:")
+do {
+    let hostileTitle = "A <b> & \"Q\" > end"
+    let hostileAuthor = "Tom & <Jerry>"
+    let line = OCRLine(text: "這是一段足夠長的內文字，用來確保這一頁被當作文字頁處理，於是 EpubBuilder 會真的寫出章節 XHTML、OPF 與 NCX，讓我們能驗證標題與作者中的 XML 特殊字元都被正確跳脫。",
+                       x: 0.1, y: 0.5, width: 0.8, height: 0.03)
+    let page = OCRPage(pageIndex: 0, lines: [line], type: "text", image: nil)
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("reepub-escape-selftest.epub")
+    try EpubBuilder.build(pages: [page],
+                          metadata: EpubMetadata(title: hostileTitle, author: hostileAuthor),
+                          outputURL: url)
+    print("  ✓ hostile title/author built without XML errors")
+    try? FileManager.default.removeItem(at: url)
+} catch {
+    print("  ✗ hostile title/author build failed: \(error.localizedDescription)")
+    failures += 1
+}
+
 if failures == 0 {
     print("\n[SUCCESS] OCR + EPUB self-test passed.")
     exit(0)

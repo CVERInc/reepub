@@ -10,6 +10,13 @@ public struct OCRLine {
     public let y: Double
     public let width: Double
     public let height: Double
+    public init(text: String, x: Double, y: Double, width: Double, height: Double) {
+        self.text = text
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
 }
 
 /// One OCR'd PDF page. `type` is "text" or "image" (low-text pages kept as image plates).
@@ -18,6 +25,12 @@ public struct OCRPage {
     public let lines: [OCRLine]
     public let type: String
     public var image: CGImage?
+    public init(pageIndex: Int, lines: [OCRLine], type: String, image: CGImage? = nil) {
+        self.pageIndex = pageIndex
+        self.lines = lines
+        self.type = type
+        self.image = image
+    }
 }
 
 /// OCR failures. The associated value carries the offending name; the

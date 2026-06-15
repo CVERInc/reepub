@@ -173,14 +173,20 @@ public enum EpubBuilder {
 
     // MARK: Helpers
 
-    private static func escapeXML(_ s: String) -> String {
+    /// Escape text destined for XML/XHTML *element content* (&, <, >). Used
+    /// everywhere user- or OCR-derived text lands inside a tag, including
+    /// <dc:title>/<dc:creator>: a title like "A <B>" would otherwise produce
+    /// malformed XML that the validator then rejects.
+    static func escapeXML(_ s: String) -> String {
         s.replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
     }
 
-    private static func escapeAmp(_ s: String) -> String {
-        s.replacingOccurrences(of: "&", with: "&amp;")
+    /// Escape text destined for an XML *attribute value* (adds " on top of the
+    /// element-content escaping) so a quote can't close the attribute early.
+    static func escapeAttr(_ s: String) -> String {
+        escapeXML(s).replacingOccurrences(of: "\"", with: "&quot;")
     }
 
     private static func jpegData(from cgImage: CGImage, compression: CGFloat = 0.8) -> Data? {
@@ -422,7 +428,7 @@ public enum EpubBuilder {
         </head>
         <body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff;">
           <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
-            <img class="cover-image" src="../\(imageRelPath)" alt="\(escapeXML(title))" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
+            <img class="cover-image" src="../\(imageRelPath)" alt="\(escapeAttr(title))" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
           </div>
         </body>
         </html>
@@ -440,7 +446,7 @@ public enum EpubBuilder {
         </head>
         <body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff;">
           <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
-            <img class="cover-image" src="images/cover.jpeg" alt="\(escapeXML(title))" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
+            <img class="cover-image" src="images/cover.jpeg" alt="\(escapeAttr(title))" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
           </div>
         </body>
         </html>
@@ -474,7 +480,7 @@ public enum EpubBuilder {
                                    imageItems: [(String, String)],
                                    chapters: [(String, String)]) -> String {
         let creator = metadata.author.isEmpty ? "" :
-            "\n    <dc:creator>\(escapeAmp(metadata.author))</dc:creator>"
+            "\n    <dc:creator>\(escapeXML(metadata.author))</dc:creator>"
         let coverMeta = hasCover ? "\n    <meta name=\"cover\" content=\"cover-image\"/>" : ""
         let timestamp = String(Int(Date().timeIntervalSince1970 * 1000))
 
@@ -503,7 +509,7 @@ public enum EpubBuilder {
         <?xml version="1.0" encoding="UTF-8"?>
         <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="3.0">
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-            <dc:title>\(escapeAmp(metadata.title))</dc:title>\(creator)
+            <dc:title>\(escapeXML(metadata.title))</dc:title>\(creator)
             <dc:language>zh-Hant</dc:language>
             <dc:identifier id="BookID">urn:uuid:ocr-book-\(timestamp)</dc:identifier>
             <meta property="dcterms:modified">\(isoTimestamp())</meta>\(coverMeta)
