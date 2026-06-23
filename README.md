@@ -9,9 +9,7 @@
 
 **No API keys · No subscriptions · No internet · Your files never leave your machine.**
 
-> **reepub isn't a "PDF→EPUB converter" — it's a capability you _own_.** Studio-grade OCR that lives on your shelf, not in someone's cloud. Every cloud scan-to-ebook service makes you upload your books to a stranger's server, pay per page, and leaves the result in *their* account. reepub inverts all of it: **free, offline, yours.**
-
-> **What reepub is for.** reepub is a tool for digitizing documents **you own or have the right to digitize** — your own writing, notes and correspondence, public-domain works, or books you physically own — into a personal ebook library you keep locally. Everything is processed on your own Mac; nothing is ever uploaded. Please respect copyright and the rights of authors and publishers.
+> What reepub is for. reepub is a tool for digitizing documents you own or have the right to digitize — your own writing, notes and correspondence, public-domain works, or books you physically own — into a personal ebook library you keep locally. Everything is processed on your own Mac; nothing is ever uploaded. Please respect copyright and the rights of authors and publishers.
 
 🌐 [日本語](https://cver.net/ja-jp/oss/reepub) · [한국어](https://cver.net/ko-kr/oss/reepub) · [繁體中文](https://cver.net/zh-tw/oss/reepub)
 
@@ -29,7 +27,7 @@ difference is ownership:
   revocable, priced per page, and your files pass through someone else's servers.
   `reepub` is the book on your own shelf — free, offline, and *yours*; no one can
   reprice it, gate it, or switch it off.
-- **Frontier-quality OCR you already paid for.** It unlocks Apple's
+- **OCR you already paid for.** It unlocks Apple's
   [Vision](https://developer.apple.com/documentation/vision) framework and the
   Neural Engine already in your Mac (M1–M4+) — so a tiny MIT tool matches *paid*
   cloud OCR, fully on-device.
