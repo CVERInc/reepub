@@ -1,3 +1,4 @@
+// sync-marker: v1
 const fs = require('fs');
 const path = require('path');
 const { execFileSync, execSync } = require('child_process');

@@ -1,3 +1,4 @@
+// sync-marker: v1
 // Pure, side-effect-free text/EPUB helpers shared by the CLI builder and its
 // unit tests. Kept behaviorally in sync with macos/Sources/ReepubCore/EpubBuilder.swift
 // (joinText / processPage / structureChapters / XML escaping). No I/O here so the

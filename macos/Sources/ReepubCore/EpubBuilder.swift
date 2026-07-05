@@ -1,3 +1,6 @@
+// sync-marker: v1
+// Kept behaviorally in sync with src/builder.js / src/epub-text.js (joinText /
+// processPage / structureChapters / XML escaping). See scripts/check-sync-markers.mjs.
 import Foundation
 import AppKit
 import CoreGraphics
@@ -454,7 +457,7 @@ public enum EpubBuilder {
     }
 
     private static func indexXHTML(title: String, chapters: [(String, String)]) -> String {
-        let items = chapters.map { "    <li><a href=\"\($0.1)\">\(escapeXML($0.0))</a></li>" }
+        let items = chapters.map { "    <li><a href=\"\(escapeAttr($0.1))\">\(escapeXML($0.0))</a></li>" }
             .joined(separator: "\n")
         return """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -529,7 +532,7 @@ public enum EpubBuilder {
             """
                 <navPoint id="navPoint-\(ch.0)" playOrder="\(idx + 2)">
                   <navLabel><text>\(escapeXML(ch.1))</text></navLabel>
-                  <content src="\(ch.2)"/>
+                  <content src="\(escapeAttr(ch.2))"/>
                 </navPoint>
             """
         }.joined(separator: "\n")
