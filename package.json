@@ -34,6 +34,7 @@
     "ocr": "./bin/scan-ocr",
     "convert": "node src/builder.js",
     "start": "node src/server.js",
+    "merge": "node src/merge.js",
     "validate": "node src/validator.js",
     "test": "node src/test-validation.js && node src/test-builder.js"
   }
