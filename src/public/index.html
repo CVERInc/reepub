@@ -572,10 +572,10 @@
           body: selectedFile
         });
         
-        if (!uploadRes.ok) throw new Error('File upload failed.');
-        
-        const uploadData = await uploadRes.json();
-        if (!uploadData.success) throw new Error(uploadData.error || 'Upload error');
+        const uploadData = await uploadRes.json().catch(() => ({}));
+        if (!uploadRes.ok || !uploadData.success || !uploadData.uploadId) {
+          throw new Error(uploadData.error || 'File upload failed.');
+        }
 
         terminal.textContent += `[Client] Upload successful. Temporary file stored.\n`;
         btnText.textContent = 'OCR 轉檔中...';
@@ -586,7 +586,9 @@
         const title = bookTitle.value || 'Book';
         const author = bookAuthor.value.trim();
         
-        const convertUrl = `/convert?tempPath=${encodeURIComponent(uploadData.tempPath)}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
+        // The server names files, never the client: uploadId is an opaque id
+        // it minted, and the download token below is the same deal.
+        const convertUrl = `/convert?uploadId=${encodeURIComponent(uploadData.uploadId)}&title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}`;
         
         const response = await fetch(convertUrl);
         const reader = response.body.getReader();
@@ -631,7 +633,7 @@
           btnSpinner.style.display = 'none';
 
           // Trigger download
-          window.location.href = `/download?token=${encodeURIComponent(finalToken)}&title=${encodeURIComponent(title)}`;
+          window.location.href = `/download?token=${encodeURIComponent(finalToken)}`;
           
           setTimeout(() => {
             alert('電子書轉換成功，已自動為您下載！');
