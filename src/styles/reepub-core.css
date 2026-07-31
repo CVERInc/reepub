@@ -32,7 +32,7 @@ h3 { font-size: 1.3em; }
 /* --- Structural Projections --- */
 
 /* Title Badges & Oneliners */
-.ch-badge {
+.reepub-badge {
   font-size: 0.75em;
   text-transform: uppercase;
   letter-spacing: 2px;
@@ -43,7 +43,7 @@ h3 { font-size: 1.3em; }
   padding-top: 1em;
 }
 
-.ch-oneliner {
+.reepub-quote {
   font-size: 1.2em;
   font-style: italic;
   text-align: center;
@@ -54,12 +54,12 @@ h3 { font-size: 1.3em; }
 }
 
 /* Content Blocks */
-.story-block {
+.reepub-section-quote {
   margin: 2em 0;
   padding: 0.5em 1em;
   border-left: 4px solid #333;
 }
-.takeaway {
+.reepub-highlight {
   margin: 2em 0;
   padding: 1.5em;
   border: 2px solid #333;
@@ -70,21 +70,21 @@ h3 { font-size: 1.3em; }
 /* --- The Framework / Diagram Engine --- */
 /* Translating web flowcharts into e-ink safe cards */
 
-.framework {
+.reepub-diagram {
   margin: 2em 0;
   padding: 1em;
   border: 1px dashed #999;
   background-color: #fafafa;
 }
 
-.diagram-title {
+.reepub-diagram-title {
   font-weight: bold;
   text-align: center;
   font-size: 1.2em;
   margin-bottom: 1em;
 }
 
-.fw-box {
+.reepub-box {
   border: 1px solid #333;
   padding: 0.8em;
   margin: 0.5em 0;
@@ -94,7 +94,7 @@ h3 { font-size: 1.3em; }
   page-break-inside: avoid;
 }
 
-.fw-arrow {
+.reepub-arrow {
   text-align: center;
   font-size: 1.2em;
   color: #666;
@@ -102,14 +102,14 @@ h3 { font-size: 1.3em; }
 }
 
 /* On E-ink, horizontal flex rows fail often. Fallback to block stacking with indentation. */
-.fw-row {
+.reepub-row {
   display: block; 
   margin: 1em 0;
   padding-left: 1em;
   border-left: 2px solid #ccc;
 }
 
-.fw-row .fw-box {
+.reepub-row .reepub-box {
   margin: 0.5em 0;
   text-align: left; /* align left to show hierarchy */
 }

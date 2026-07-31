@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const sharp = require('sharp');
+const cheerio = require('cheerio');
 const { generateCover } = require('../src/cover-generator');
 const { validateEpub } = require('../src/validator');
 
@@ -64,7 +65,7 @@ async function buildFromWeb() {
     }
   }
 
-  // 3. Sanitizer (HTML)
+  // 3. Sanitizer (HTML) - Powered by Cheerio
   console.log('Sanitizing HTML...');
   const chaptersDir = path.join(srcDir, 'chapters');
   const chapterFiles = fs.readdirSync(chaptersDir).filter(f => f.match(/^ch\d+\.html$/)).sort();
@@ -73,40 +74,59 @@ async function buildFromWeb() {
   
   for (let i = 0; i < chapterFiles.length; i++) {
     const rawHtml = fs.readFileSync(path.join(chaptersDir, chapterFiles[i]), 'utf8');
-    
-    // Extract content (between hero and bottom nav)
-    const contentMatch = rawHtml.match(/<div class="ch-hero">([\s\S]*?)<!-- ═══ 導航 ═══ -->/);
-    if (!contentMatch) continue;
-    
-    let body = '<div class="ch-hero">' + contentMatch[1] + '</div>'; // close container
-    
-    // Sanitize!
-    body = body.replace(/<br>/g, '<br/>'); // Fix empty tags
-    body = body.replace(/<hr>/g, '<hr/>');
-    body = body.replace(/<img([^>]+[^\/])>/g, '<img$1/>'); // Auto-close images
-    body = body.replace(/&(?!#?[a-zA-Z0-9]+;)/g, '&amp;'); // Fix ampersands
-    body = body.replace(/\.\.\/images\//g, 'images/'); // Fix paths
+    const $ = cheerio.load(rawHtml);
     
     // Extract Title for TOC
-    const titleMatch = body.match(/<h1>(.*?)<\/h1>/);
-    const title = titleMatch ? titleMatch[1].replace(/<[^>]+>/g, '') : `Chapter ${i + 1}`;
+    const titleText = $('h1').first().text().trim() || `Chapter ${i + 1}`;
+    
+    // Remove unwanted site elements
+    $('nav, .ch-nav, footer, script, style').remove();
+    
+    // Map Site-Specific Classes to Neutral Reepub Classes
+    $('.ch-badge').removeClass('ch-badge').addClass('reepub-badge');
+    $('.ch-oneliner').removeClass('ch-oneliner').addClass('reepub-quote');
+    $('.story-block').removeClass('story-block').addClass('reepub-section-quote');
+    $('.takeaway').removeClass('takeaway').addClass('reepub-highlight');
+    $('.framework').removeClass('framework').addClass('reepub-diagram');
+    $('.diagram-title').removeClass('diagram-title').addClass('reepub-diagram-title');
+    $('.fw-box').removeClass('fw-box').addClass('reepub-box');
+    $('.fw-arrow').removeClass('fw-arrow').addClass('reepub-arrow');
+    $('.fw-row').removeClass('fw-row').addClass('reepub-row');
+    
+    // Fix image paths
+    $('img').each((_, el) => {
+      const src = $(el).attr('src');
+      if (src && src.startsWith('../images/')) {
+        $(el).attr('src', src.replace('../images/', 'images/'));
+      }
+    });
+    
+    // Output Strict XML
+    let bodyXml = $.xml($('body'));
+    
+    // Strip the outer <body> tags because we wrap it in our own <body> later
+    bodyXml = bodyXml.replace(/^<body[^>]*>/i, '').replace(/<\/body>$/i, '');
+    
+    // Cheerio $.xml() sometimes leaves void tags unclosed depending on the parse tree.
+    // Enforce EPUB Strict XML:
+    bodyXml = bodyXml.replace(/<br>/g, '<br/>');
+    bodyXml = bodyXml.replace(/<hr>/g, '<hr/>');
+    bodyXml = bodyXml.replace(/<img([^>]+[^\/])>/g, '<img$1/>');
     
     // Wrap in standard XHTML
     const xhtml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-TW">
 <head>
-  <title>${title}</title>
+  <title>${titleText}</title>
   <link rel="stylesheet" href="css/reepub-core.css"/>
 </head>
-<body>
-${body}
-</body>
+${bodyXml}
 </html>`;
     
     const fileName = `${i + 1}.xhtml`;
     fs.writeFileSync(path.join(oebps, fileName), xhtml);
-    allChapters.push({ id: `P${i + 1}`, href: fileName, title });
+    allChapters.push({ id: `P${i + 1}`, href: fileName, title: titleText });
   }
 
   // 4. Binder (Cover & Meta)
