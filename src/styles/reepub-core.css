@@ -1,0 +1,115 @@
+/* 
+ * Reepub Core Stylesheet 
+ * A semantic rendering engine inspired by tile-lab.
+ * Designed for absolute safety on E-ink devices and Apple Books.
+ */
+
+body {
+  font-family: "PingFang TC", "Inter", sans-serif;
+  line-height: 1.6;
+  margin: 0;
+  padding: 2%;
+  color: #000;
+  background-color: #fff;
+}
+
+/* --- Typographic Hierarchy --- */
+h1, h2, h3, h4 {
+  font-weight: 700;
+  line-height: 1.3;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+h1 { 
+  font-size: 1.8em; 
+  text-align: center; 
+  border-bottom: 2px solid #333; 
+  padding-bottom: 0.2em; 
+}
+h3 { font-size: 1.3em; }
+
+/* --- Structural Projections --- */
+
+/* Title Badges & Oneliners */
+.ch-badge {
+  font-size: 0.75em;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align: center;
+  color: #555;
+  margin-bottom: 1em;
+  border-top: 1px solid #999;
+  padding-top: 1em;
+}
+
+.ch-oneliner {
+  font-size: 1.2em;
+  font-style: italic;
+  text-align: center;
+  margin: 1.5em 0;
+  padding: 1em;
+  border: 1px solid #ddd;
+  background-color: #f9f9f9;
+}
+
+/* Content Blocks */
+.story-block {
+  margin: 2em 0;
+  padding: 0.5em 1em;
+  border-left: 4px solid #333;
+}
+.takeaway {
+  margin: 2em 0;
+  padding: 1.5em;
+  border: 2px solid #333;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* --- The Framework / Diagram Engine --- */
+/* Translating web flowcharts into e-ink safe cards */
+
+.framework {
+  margin: 2em 0;
+  padding: 1em;
+  border: 1px dashed #999;
+  background-color: #fafafa;
+}
+
+.diagram-title {
+  font-weight: bold;
+  text-align: center;
+  font-size: 1.2em;
+  margin-bottom: 1em;
+}
+
+.fw-box {
+  border: 1px solid #333;
+  padding: 0.8em;
+  margin: 0.5em 0;
+  text-align: center;
+  font-weight: 600;
+  background-color: #fff;
+  page-break-inside: avoid;
+}
+
+.fw-arrow {
+  text-align: center;
+  font-size: 1.2em;
+  color: #666;
+  margin: 0.2em 0;
+}
+
+/* On E-ink, horizontal flex rows fail often. Fallback to block stacking with indentation. */
+.fw-row {
+  display: block; 
+  margin: 1em 0;
+  padding-left: 1em;
+  border-left: 2px solid #ccc;
+}
+
+.fw-row .fw-box {
+  margin: 0.5em 0;
+  text-align: left; /* align left to show hierarchy */
+}

@@ -42,6 +42,7 @@ async function buildFromWeb() {
   const meta = path.join(tmp, 'META-INF');
   fs.mkdirSync(oebps, { recursive: true });
   fs.mkdirSync(path.join(oebps, 'images'), { recursive: true });
+  fs.mkdirSync(path.join(oebps, 'css'), { recursive: true });
   fs.mkdirSync(meta, { recursive: true });
 
   // 1. Initial Setup
@@ -50,6 +51,9 @@ async function buildFromWeb() {
 <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
   <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
 </container>`);
+
+  // Inject Reepub Core CSS
+  fs.copyFileSync(path.join(__dirname, '../src/styles/reepub-core.css'), path.join(oebps, 'css', 'reepub-core.css'));
 
   // 2. Dehydrator (Images)
   console.log('Dehydrating images...');
@@ -91,7 +95,10 @@ async function buildFromWeb() {
     const xhtml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-TW">
-<head><title>${title}</title></head>
+<head>
+  <title>${title}</title>
+  <link rel="stylesheet" href="css/reepub-core.css"/>
+</head>
 <body>
 ${body}
 </body>
@@ -105,7 +112,7 @@ ${body}
   // 4. Binder (Cover & Meta)
   console.log('Generating Cover & Binding...');
   const coverImgPath = path.join(oebps, 'images', 'cover.jpeg');
-  await generateCover('The Book of Elon', 'Eugene (Translator)', coverImgPath, 'horizontal');
+  await generateCover('The Book of Elon', 'Eric Jorgenson', coverImgPath, 'horizontal');
   
   const coverXhtml = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
@@ -122,7 +129,8 @@ ${body}
   // Create OPF
   const opfItems = [
     '    <item id="cover-image" href="images/cover.jpeg" media-type="image/jpeg"/>',
-    '    <item id="cover-xhtml" href="cover.xhtml" media-type="application/xhtml+xml"/>'
+    '    <item id="cover-xhtml" href="cover.xhtml" media-type="application/xhtml+xml"/>',
+    '    <item id="reepub-core-css" href="css/reepub-core.css" media-type="text/css"/>'
   ];
   const opfSpine = ['    <itemref idref="cover-xhtml"/>'];
   const ncxNav = [];
