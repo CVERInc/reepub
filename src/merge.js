@@ -17,6 +17,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { validateEpub } = require('./validator');
+const { generateCover } = require('./cover-generator');
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -153,10 +154,19 @@ function buildTocXhtml(title, chapters) {
   ].join('\r\n');
 }
 
-function buildContentOpf(title, author, chapters, hasCss, hasXpgt, pageDirection) {
+function buildContentOpf(title, author, chapters, hasCss, hasXpgt, pageDirection, hasCover) {
   const uid = require('crypto').randomUUID();
-  const items = ['    <item id="P0" href="0.xhtml" media-type="application/xhtml+xml"/>'];
-  const spine = ['    <itemref idref="P0"/>'];
+  const items = [];
+  const spine = [];
+
+  if (hasCover) {
+    items.push('    <item id="cover-image" href="images/cover.jpeg" media-type="image/jpeg"/>');
+    items.push('    <item id="cover-xhtml" href="cover.xhtml" media-type="application/xhtml+xml"/>');
+    spine.push('    <itemref idref="cover-xhtml"/>');
+  }
+
+  items.push('    <item id="P0" href="0.xhtml" media-type="application/xhtml+xml"/>');
+  spine.push('    <itemref idref="P0"/>');
 
   for (let i = 0; i < chapters.length; i++) {
     const id = `P${i + 1}`;
@@ -168,6 +178,7 @@ function buildContentOpf(title, author, chapters, hasCss, hasXpgt, pageDirection
   if (hasXpgt) items.push('    <item id="xpgt" href="page-template.xpgt" media-type="application/vnd.adobe-page-template+xml"/>');
 
   const dirAttr = pageDirection ? ` page-progression-direction="${pageDirection}"` : '';
+  const coverMeta = hasCover ? `\n    <meta name="cover" content="cover-image"/>` : '';
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="2.0">
@@ -175,7 +186,7 @@ function buildContentOpf(title, author, chapters, hasCss, hasXpgt, pageDirection
     <dc:title>${title}</dc:title>
 ${author ? `    <dc:creator opf:role="aut">${author}</dc:creator>\n` : ''}\
     <dc:language>zh-TW</dc:language>
-    <dc:identifier id="BookID">urn:uuid:${uid}</dc:identifier>
+    <dc:identifier id="BookID">urn:uuid:${uid}</dc:identifier>${coverMeta}
   </metadata>
   <manifest>
 ${items.join('\n')}
@@ -220,7 +231,7 @@ ${navPoints.join('\n')}
 // zip helper (uses system zip, same as builder.js)
 // ---------------------------------------------------------------------------
 
-function writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirection) {
+function writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirection, coverImagePath) {
   const tmp = path.join(path.dirname(outputPath), `.reepub-merge-${Date.now()}`);
   const oebps = path.join(tmp, 'OEBPS');
   const meta = path.join(tmp, 'META-INF');
@@ -238,12 +249,34 @@ function writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirect
   </rootfiles>
 </container>`);
 
+  const hasCover = !!coverImagePath;
+
   // OEBPS files
-  fs.writeFileSync(path.join(oebps, 'content.opf'), buildContentOpf(title, author, allChapters, !!css, !!xpgt, pageDirection));
+  fs.writeFileSync(path.join(oebps, 'content.opf'), buildContentOpf(title, author, allChapters, !!css, !!xpgt, pageDirection, hasCover));
   fs.writeFileSync(path.join(oebps, 'toc.ncx'), buildTocNcx(title, allChapters));
   fs.writeFileSync(path.join(oebps, '0.xhtml'), buildTocXhtml(title, allChapters));
   if (css) fs.writeFileSync(path.join(oebps, 'stylesheet.css'), css);
   if (xpgt) fs.writeFileSync(path.join(oebps, 'page-template.xpgt'), xpgt);
+  
+  if (hasCover) {
+    const imagesDir = path.join(oebps, 'images');
+    fs.mkdirSync(imagesDir, { recursive: true });
+    fs.copyFileSync(coverImagePath, path.join(imagesDir, 'cover.jpeg'));
+    
+    const coverXhtml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-TW">
+<head>
+  <title>Cover</title>
+</head>
+<body>
+  <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
+    <img class="cover-image" src="images/cover.jpeg" alt="${title}" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
+  </div>
+</body>
+</html>`;
+    fs.writeFileSync(path.join(oebps, 'cover.xhtml'), coverXhtml);
+  }
 
   for (let i = 0; i < allChapters.length; i++) {
     fs.writeFileSync(path.join(oebps, `${i + 1}.xhtml`), allChapters[i].content);
@@ -263,7 +296,7 @@ function writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirect
 // main
 // ---------------------------------------------------------------------------
 
-function main() {
+async function main() {
   const args = process.argv.slice(2);
 
   if (args.length < 3 || args.includes('--help') || args.includes('-h')) {
@@ -275,6 +308,7 @@ Usage:
 Options:
   --title <title>     Book title (default: extracted from first volume)
   --author <author>   Book author (default: empty)
+  --cover             Generate and embed a clean synthetic cover image
   --no-validate       Skip EPUB validation after merge
   -h, --help          Show this help
 
@@ -293,17 +327,19 @@ Limitations:
   let title = '';
   let author = '';
   let skipValidate = false;
+  let generateCoverImage = false;
   const positional = [];
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--title' && i + 1 < args.length) { title = args[++i]; continue; }
     if (args[i] === '--author' && i + 1 < args.length) { author = args[++i]; continue; }
+    if (args[i] === '--cover') { generateCoverImage = true; continue; }
     if (args[i] === '--no-validate') { skipValidate = true; continue; }
     positional.push(args[i]);
   }
 
-  if (positional.length < 3) {
-    console.error('Error: need at least an output path and two input EPUBs.');
+  if (positional.length < 2) {
+    console.error('Error: need an output path and at least one input EPUB.');
     process.exit(1);
   }
 
@@ -339,7 +375,18 @@ Limitations:
 
   console.log(`  total: ${allChapters.length} chapters`);
 
-  writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirection);
+  let coverImagePath = null;
+  if (generateCoverImage) {
+    console.log(`  generating cover...`);
+    coverImagePath = path.join(path.dirname(outputPath), `.reepub-cover-${Date.now()}.jpeg`);
+    await generateCover(title, author, coverImagePath);
+  }
+
+  writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirection, coverImagePath);
+
+  if (coverImagePath && fs.existsSync(coverImagePath)) {
+    fs.unlinkSync(coverImagePath);
+  }
 
   const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);
   console.log(`  ✓ ${path.basename(outputPath)} (${sizeKb} KB)`);
@@ -359,4 +406,7 @@ Limitations:
   }
 }
 
-main();
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

@@ -37,5 +37,8 @@
     "merge": "node src/merge.js",
     "validate": "node src/validator.js",
     "test": "node src/test-validation.js && node src/test-builder.js"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
   }
 }
