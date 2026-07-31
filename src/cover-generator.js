@@ -15,7 +15,7 @@ async function generateCover(title, author, outputPath) {
           margin: 0;
           padding: 0;
           width: 1600px;
-          height: 2400px;
+          height: 2260px;
           background: linear-gradient(135deg, #1c2331 0%, #11151c 100%);
           color: #e0e0e0;
           font-family: "Songti SC", "STSong", "Kaiti TC", serif;
@@ -94,7 +94,7 @@ async function generateCover(title, author, outputPath) {
 
   const browser = await chromium.launch();
   const page = await browser.newPage({
-    viewport: { width: 1600, height: 2400 },
+    viewport: { width: 1600, height: 2260 },
     deviceScaleFactor: 1
   });
   
