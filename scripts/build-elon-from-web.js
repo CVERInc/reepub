@@ -1,220 +1,126 @@
+#!/usr/bin/env node
+// Thin CLI over src/web-to-epub.js. It parses flags, reports the outcome and
+// exits non-zero when the build fails — nothing else lives here.
+//
+// The version this replaced hardcoded its source directory, an output path
+// inside one person's iCloud, the book title, the author and one site's class
+// map, then finished with `buildFromWeb().catch(console.error)`: a validation
+// failure was printed, the broken book stayed on disk and the process exited 0.
+// Both halves of that are now structurally impossible — every value is a flag,
+// and buildWebEpub rejects rather than logs.
+//
+//   node scripts/build-elon-from-web.js \
+//     --src /tmp/book-of-elon-src \
+//     --out ~/Books/the-book-of-elon.epub \
+//     --title 'The Book of Elon' \
+//     --author 'Eric Jorgenson' \
+//     --lang zh-TW --cover horizontal
+
 const fs = require('fs');
 const path = require('path');
-const { execFileSync } = require('child_process');
-const sharp = require('sharp');
-const cheerio = require('cheerio');
-const { generateCover } = require('../src/cover-generator');
-const { validateEpub } = require('../src/validator');
+const { buildWebEpub } = require('../src/web-to-epub');
+const { DEFAULT_CLASS_MAP } = require('../src/sanitizer');
 
-async function optimizeImage(srcPath, destPath) {
-  const ext = path.extname(srcPath).toLowerCase();
+const USAGE = `Usage: node scripts/build-elon-from-web.js --src <dir> --out <file.epub> --title <text> --lang <bcp47> [options]
+
+  --src <dir>          site directory holding chapters/*.html and images/  (required)
+  --out <file.epub>    where to write the book                             (required)
+  --title <text>       book title, also the cover title                    (required)
+  --lang <bcp47>       language tag, e.g. zh-TW                            (required)
+  --author <name>      the ORIGINAL author  (dc:creator, MARC 'aut')
+  --translator <name>  the translator       (dc:contributor, MARC 'trl')
+  --cover <layout>     cover layout: horizontal | vertical  (default vertical)
+  --class-map <file>   JSON { "siteClass": "reepubClass" } translation table;
+                       defaults to the Book of Elon web edition's table`;
+
+const FLAGS = {
+  '--src': 'srcDir',
+  '--out': 'outputPath',
+  '--title': 'title',
+  '--lang': 'language',
+  '--author': 'creator',
+  '--translator': 'translator',
+  '--cover': 'coverLayout',
+  '--class-map': 'classMapPath',
+};
+
+// Everything a book cannot be built without. The rest is optional because the
+// pipeline has an honest answer for its absence — no author line on the cover,
+// no translator credit, cover-generator's own default layout, the bundled class
+// table — whereas a guessed title, path or language is a silent defect.
+const REQUIRED_FLAGS = ['--src', '--out', '--title', '--lang'];
+
+function die(message) {
+  console.error(`build-elon-from-web: ${message}\n\n${USAGE}`);
+  process.exit(2);
+}
+
+function parseArgs(argv) {
+  const parsed = {};
+  for (let i = 0; i < argv.length; i++) {
+    const flag = argv[i];
+    if (flag === '--help' || flag === '-h') {
+      console.log(USAGE);
+      process.exit(0);
+    }
+    const key = FLAGS[flag];
+    if (!key) die(`unknown argument ${JSON.stringify(flag)}`);
+    if (i + 1 >= argv.length) die(`${flag} needs a value`);
+    parsed[key] = argv[++i];
+  }
+  return parsed;
+}
+
+// A class map from disk is untrusted input: a parse error or the wrong shape
+// must be reported against the file the user named, not surface later as a
+// confusing complaint about the table's contents.
+function readClassMap(file) {
+  let raw;
   try {
-    let pipeline = sharp(srcPath);
-    const metadata = await pipeline.metadata();
-    
-    // Dehydrator: Resize and Compress
-    if (metadata.width > 1600 || metadata.height > 1600) {
-      pipeline = pipeline.resize(1600, 1600, { fit: 'inside', withoutEnlargement: true });
-    }
-    
-    if (ext === '.png') {
-      pipeline = pipeline.png({ palette: true, quality: 80, colors: 256 });
-    } else if (ext === '.jpg' || ext === '.jpeg') {
-      pipeline = pipeline.jpeg({ quality: 80 });
-    }
-    
-    await pipeline.toFile(destPath);
+    raw = fs.readFileSync(file, 'utf8');
   } catch (err) {
-    console.error(`Failed to optimize ${srcPath}:`, err.message);
-    fs.copyFileSync(srcPath, destPath); // fallback
+    die(`could not read --class-map ${file}: ${err.message}`);
   }
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    die(`--class-map ${file} is not valid JSON: ${err.message}`);
+  }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    die(`--class-map ${file} must contain a JSON object of { "siteClass": "reepubClass" }`);
+  }
+  return parsed;
 }
 
-async function buildFromWeb() {
-  const srcDir = '/tmp/book-of-elon-src';
-  const outEpub = path.resolve('/Users/chodaict/Library/Mobile Documents/com~apple~CloudDocs/@MixFlavor/epub/from Scan/The Book of Elon (Built from Web).epub');
-  
-  if (!fs.existsSync(srcDir)) {
-    throw new Error('Source directory not found. Please clone the repo first.');
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  for (const flag of REQUIRED_FLAGS) {
+    if (!args[FLAGS[flag]]) die(`${flag} is required`);
   }
 
-  const tmp = `/tmp/reepub-build-${Date.now()}`;
-  const oebps = path.join(tmp, 'OEBPS');
-  const meta = path.join(tmp, 'META-INF');
-  fs.mkdirSync(oebps, { recursive: true });
-  fs.mkdirSync(path.join(oebps, 'images'), { recursive: true });
-  fs.mkdirSync(path.join(oebps, 'css'), { recursive: true });
-  fs.mkdirSync(meta, { recursive: true });
+  // Every argument is settled before the build is announced, so a usage error
+  // never appears under a "Building …" line that was never true.
+  const classMap = args.classMapPath ? readClassMap(args.classMapPath) : DEFAULT_CLASS_MAP;
+  const outputPath = path.resolve(args.outputPath);
+  console.log(`Building ${args.title} -> ${outputPath}`);
 
-  // 1. Initial Setup
-  fs.writeFileSync(path.join(tmp, 'mimetype'), 'application/epub+zip');
-  fs.writeFileSync(path.join(meta, 'container.xml'), `<?xml version="1.0"?>
-<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
-  <rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles>
-</container>`);
-
-  // Inject Reepub Core CSS
-  fs.copyFileSync(path.join(__dirname, '../src/styles/reepub-core.css'), path.join(oebps, 'css', 'reepub-core.css'));
-
-  // 2. Dehydrator (Images)
-  console.log('Dehydrating images...');
-  const srcImages = fs.readdirSync(path.join(srcDir, 'images'));
-  for (const img of srcImages) {
-    if (img.match(/\.(png|jpe?g)$/i)) {
-      await optimizeImage(path.join(srcDir, 'images', img), path.join(oebps, 'images', img));
-    }
-  }
-
-  // 3. Sanitizer (HTML) - Powered by Cheerio
-  console.log('Sanitizing HTML...');
-  const chaptersDir = path.join(srcDir, 'chapters');
-  const chapterFiles = fs.readdirSync(chaptersDir).filter(f => f.match(/^ch\d+\.html$/)).sort();
-  
-  const allChapters = [];
-  
-  for (let i = 0; i < chapterFiles.length; i++) {
-    const rawHtml = fs.readFileSync(path.join(chaptersDir, chapterFiles[i]), 'utf8');
-    const $ = cheerio.load(rawHtml);
-    
-    // Extract Title for TOC
-    const titleText = $('h1').first().text().trim() || `Chapter ${i + 1}`;
-    
-    // Remove unwanted site elements
-    $('nav, .ch-nav, footer, script, style').remove();
-    
-    // Map Site-Specific Classes to Neutral Reepub Classes
-    $('.ch-badge').removeClass('ch-badge').addClass('reepub-badge');
-    $('.ch-oneliner').removeClass('ch-oneliner').addClass('reepub-quote');
-    $('.story-block').removeClass('story-block').addClass('reepub-section-quote');
-    $('.takeaway').removeClass('takeaway').addClass('reepub-highlight');
-    $('.framework').removeClass('framework').addClass('reepub-diagram');
-    $('.diagram-title').removeClass('diagram-title').addClass('reepub-diagram-title');
-    $('.fw-box').removeClass('fw-box').addClass('reepub-box');
-    $('.fw-arrow').removeClass('fw-arrow').addClass('reepub-arrow');
-    $('.fw-row').removeClass('fw-row').addClass('reepub-row');
-    
-    // Fix image paths
-    $('img').each((_, el) => {
-      const src = $(el).attr('src');
-      if (src && src.startsWith('../images/')) {
-        $(el).attr('src', src.replace('../images/', 'images/'));
-      }
-    });
-    
-    // Output Strict XML
-    let bodyXml = $.xml($('body'));
-    
-    // Strip the outer <body> tags because we wrap it in our own <body> later
-    bodyXml = bodyXml.replace(/^<body[^>]*>/i, '').replace(/<\/body>$/i, '');
-    
-    // Cheerio $.xml() sometimes leaves void tags unclosed depending on the parse tree.
-    // Enforce EPUB Strict XML:
-    bodyXml = bodyXml.replace(/<br>/g, '<br/>');
-    bodyXml = bodyXml.replace(/<hr>/g, '<hr/>');
-    bodyXml = bodyXml.replace(/<img([^>]+[^\/])>/g, '<img$1/>');
-    
-    // Wrap in standard XHTML
-    const xhtml = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-TW">
-<head>
-  <title>${titleText}</title>
-  <link rel="stylesheet" href="css/reepub-core.css"/>
-</head>
-${bodyXml}
-</html>`;
-    
-    const fileName = `${i + 1}.xhtml`;
-    fs.writeFileSync(path.join(oebps, fileName), xhtml);
-    allChapters.push({ id: `P${i + 1}`, href: fileName, title: titleText });
-  }
-
-  // 4. Binder (Cover & Meta)
-  console.log('Generating Cover & Binding...');
-  const coverImgPath = path.join(oebps, 'images', 'cover.jpeg');
-  await generateCover('The Book of Elon', 'Eric Jorgenson', coverImgPath, 'horizontal');
-  
-  const coverXhtml = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-TW">
-<head><title>Cover</title></head>
-<body>
-  <div style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
-    <img src="images/cover.jpeg" alt="Cover" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
-  </div>
-</body>
-</html>`;
-  fs.writeFileSync(path.join(oebps, 'cover.xhtml'), coverXhtml);
-  
-  // Create OPF
-  const opfItems = [
-    '    <item id="cover-image" href="images/cover.jpeg" media-type="image/jpeg"/>',
-    '    <item id="cover-xhtml" href="cover.xhtml" media-type="application/xhtml+xml"/>',
-    '    <item id="reepub-core-css" href="css/reepub-core.css" media-type="text/css"/>'
-  ];
-  const opfSpine = ['    <itemref idref="cover-xhtml"/>'];
-  const ncxNav = [];
-  
-  allChapters.forEach((ch, idx) => {
-    opfItems.push(`    <item id="${ch.id}" href="${ch.href}" media-type="application/xhtml+xml"/>`);
-    opfSpine.push(`    <itemref idref="${ch.id}"/>`);
-    ncxNav.push(`    <navPoint id="navPoint-${idx+1}" playOrder="${idx+1}">
-      <navLabel><text>${ch.title}</text></navLabel>
-      <content src="${ch.href}"/>
-    </navPoint>`);
+  const { outputPath: written } = await buildWebEpub({
+    srcDir: args.srcDir,
+    outputPath,
+    title: args.title,
+    creator: args.creator,
+    translator: args.translator,
+    language: args.language,
+    classMap,
+    coverLayout: args.coverLayout,
   });
-  
-  // Add image manifest items
-  const finalImages = fs.readdirSync(path.join(oebps, 'images'));
-  finalImages.forEach(img => {
-    if (img === 'cover.jpeg') return;
-    const mt = img.endsWith('.png') ? 'image/png' : 'image/jpeg';
-    opfItems.push(`    <item id="img-${img.replace(/[^a-zA-Z0-9]/g, '')}" href="images/${img}" media-type="${mt}"/>`);
-  });
-  
-  opfItems.push('    <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>');
 
-  const opf = `<?xml version="1.0" encoding="UTF-8"?>
-<package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="2.0">
-  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
-    <dc:title>The Book of Elon</dc:title>
-    <dc:creator>Eugene</dc:creator>
-    <dc:language>zh-TW</dc:language>
-    <dc:identifier id="BookID">urn:uuid:book-of-elon-web</dc:identifier>
-    <meta name="cover" content="cover-image"/>
-  </metadata>
-  <manifest>\n${opfItems.join('\n')}\n  </manifest>
-  <spine toc="ncx">\n${opfSpine.join('\n')}\n  </spine>
-</package>`;
-  fs.writeFileSync(path.join(oebps, 'content.opf'), opf);
-  
-  // Create NCX
-  const ncx = `<?xml version="1.0" encoding="UTF-8"?>
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
-  <head><meta name="dtb:uid" content="urn:uuid:book-of-elon-web"/></head>
-  <docTitle><text>The Book of Elon</text></docTitle>
-  <navMap>\n${ncxNav.join('\n')}\n  </navMap>
-</ncx>`;
-  fs.writeFileSync(path.join(oebps, 'toc.ncx'), ncx);
-
-  // 5. Repackage
-  console.log('Packaging EPUB...');
-  if (fs.existsSync(outEpub)) fs.unlinkSync(outEpub);
-  execFileSync('zip', ['-0Xq', outEpub, 'mimetype'], { cwd: tmp });
-  execFileSync('zip', ['-ur9q', outEpub, 'META-INF', 'OEBPS'], { cwd: tmp });
-  
-  const sizeMb = (fs.statSync(outEpub).size / 1024 / 1024).toFixed(2);
-  console.log(`Success! Saved to ${path.basename(outEpub)} (${sizeMb} MB)`);
-  
-  console.log('Validating...');
-  const val = validateEpub(outEpub);
-  if (!val.success) {
-    console.error('Validation failed:\n' + val.error);
-  } else {
-    console.log('✓ EPUB valid');
-  }
-  
-  fs.rmSync(tmp, { recursive: true, force: true });
+  const sizeMb = (fs.statSync(written).size / 1024 / 1024).toFixed(2);
+  console.log(`Validated and saved: ${written} (${sizeMb} MB)`);
 }
 
-buildFromWeb().catch(console.error);
+main().catch(err => {
+  console.error(err.message);
+  process.exit(1);
+});

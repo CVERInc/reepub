@@ -29,6 +29,13 @@ h1 {
 }
 h3 { font-size: 1.3em; }
 
+/* Images arrive at their source dimensions; without this they overflow a
+   narrow e-ink page instead of shrinking to it. */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
 /* --- Structural Projections --- */
 
 /* Title Badges & Oneliners */
@@ -53,6 +60,17 @@ h3 { font-size: 1.3em; }
   background-color: #f9f9f9;
 }
 
+/* Section dividers inside a chapter */
+.reepub-section-label {
+  font-size: 0.85em;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #555;
+  margin: 2.5em 0 0.8em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #ccc;
+}
+
 /* Content Blocks */
 .reepub-section-quote {
   margin: 2em 0;
@@ -65,6 +83,27 @@ h3 { font-size: 1.3em; }
   border: 2px solid #333;
   font-weight: 600;
   text-align: center;
+}
+
+/* Key takeaways: a list read as a checklist, so it breathes more than prose. */
+.reepub-key-points li {
+  margin-bottom: 0.6em;
+}
+
+/* Bilingual pull quotes: the original above its translation, one block. */
+.reepub-quote-block {
+  margin: 1.5em 0;
+  padding: 0.5em 1em;
+  border-left: 3px solid #666;
+  page-break-inside: avoid;
+}
+.reepub-quote-en {
+  font-style: italic;
+  color: #333;
+  margin-bottom: 0.4em;
+}
+.reepub-quote-zh {
+  margin-top: 0;
 }
 
 /* --- The Framework / Diagram Engine --- */
@@ -99,6 +138,14 @@ h3 { font-size: 1.3em; }
   font-size: 1.2em;
   color: #666;
   margin: 0.2em 0;
+}
+
+/* Footnote under a diagram, not part of it */
+.reepub-caption {
+  text-align: center;
+  font-size: 0.85em;
+  color: #666;
+  margin-top: 0.8em;
 }
 
 /* On E-ink, horizontal flex rows fail often. Fallback to block stacking with indentation. */
