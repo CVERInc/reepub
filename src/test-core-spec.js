@@ -490,6 +490,93 @@ body { -epub-writing-mode: vertical-rl; }`);
       assert(false, 'heal wrote the repaired book to the output path');
     }
 
+    // The defect that started this whole audit: a generator that assembled
+    // XHTML by concatenating strings dropped the <body> tags, so a shipped
+    // 15-chapter book had every chapter floating directly under <html> — 45
+    // epubcheck errors behind a build that printed "✓ EPUB valid".
+    section('Heal: puts content back inside <body>');
+
+    const bodyless = path.join(work, 'bodyless');
+    const bodylessEpub = makeVolumeEpub(bodyless, path.join(work, 'bodyless.epub'));
+    for (const name of ['ch01.xhtml', 'ch02.xhtml']) {
+      const p = path.join(bodyless, 'OEBPS', 'chapters', name);
+      fs.writeFileSync(p, fs.readFileSync(p, 'utf8')
+        .replace('<body>', '').replace('</body>', ''));
+    }
+    fs.rmSync(bodylessEpub, { force: true });
+    execFileSync('zip', ['-0Xq', bodylessEpub, 'mimetype'], { cwd: bodyless });
+    execFileSync('zip', ['-ur9q', bodylessEpub, 'META-INF', 'OEBPS'], { cwd: bodyless });
+    assert(validateEpub(bodylessEpub).success === false,
+      'sanity: the fixture really is the broken shape (no <body>)');
+
+    const bodyFixed = path.join(work, 'bodyless-healed.epub');
+    const bodyRun = spawnSync(process.execPath,
+      [path.join(__dirname, 'heal.js'), bodylessEpub, bodyFixed], { encoding: 'utf8' });
+    assert(bodyRun.status === 0,
+      `heal repairs documents whose content sits outside <body> (exit ${bodyRun.status})`);
+    assert(/outside <body>/.test(bodyRun.stdout || ''),
+      'the body repair is reported, with a count');
+    if (fs.existsSync(bodyFixed)) {
+      assert(validateEpub(bodyFixed).success === true, 'the repaired book validates');
+      const bx = unzipTo(bodyFixed, path.join(work, 'bodyless-x'));
+      const docs = walk(bx).filter(f => /\d+\.xhtml$/.test(f));
+      assert(docs.length > 0 && docs.every(f => {
+        const c = fs.readFileSync(f, 'utf8');
+        return /<body[\s>]/.test(c) && c.includes('</body>');
+      }), 'every repaired document now has a real <body>');
+      assert(docs.some(f => /body 1/.test(fs.readFileSync(f, 'utf8'))),
+        'the text that was floating outside <body> is still in the book');
+    } else {
+      assert(false, 'heal wrote the repaired body-less book');
+    }
+
+    // Regression: heal rebuilt the package without carrying the cover
+    // DECLARATION across. The image and the cover page both survived, so the
+    // book looked intact on disk while every reader showed it as blank on the
+    // shelf — the declaration is what makes an image a cover.
+    section('Heal: keeps the cover the book already has');
+
+    const covered = path.join(work, 'covered');
+    const coveredEpub = makeVolumeEpub(covered, path.join(work, 'covered.epub'));
+    fs.writeFileSync(path.join(covered, 'OEBPS', 'images', 'cover.jpeg'),
+      fs.readFileSync(path.join(covered, 'OEBPS', 'images', 'pic.png')));
+    fs.writeFileSync(path.join(covered, 'OEBPS', 'chapters', 'cover.xhtml'),
+      XHTML('Cover', '<div><img src="../images/cover.jpeg" alt="Cover"/></div>'));
+    let coveredOpf = fs.readFileSync(path.join(covered, 'OEBPS', 'content.opf'), 'utf8');
+    coveredOpf = coveredOpf
+      .replace('</metadata>', '  <meta name="cover" content="cover-image"/>\n  </metadata>')
+      .replace('</manifest>',
+        '  <item id="cover-image" href="images/cover.jpeg" media-type="image/jpeg"/>\n'
+        + '    <item id="cover-page" href="chapters/cover.xhtml" media-type="application/xhtml+xml"/>\n  </manifest>')
+      .replace('<itemref idref="vtoc"/>', '<itemref idref="cover-page"/>\n    <itemref idref="vtoc"/>');
+    fs.writeFileSync(path.join(covered, 'OEBPS', 'content.opf'), coveredOpf);
+    fs.rmSync(coveredEpub, { force: true });
+    execFileSync('zip', ['-0Xq', coveredEpub, 'mimetype'], { cwd: covered });
+    execFileSync('zip', ['-ur9q', coveredEpub, 'META-INF', 'OEBPS'], { cwd: covered });
+
+    const coveredOut = path.join(work, 'covered-healed.epub');
+    const coveredRun = spawnSync(process.execPath,
+      [path.join(__dirname, 'heal.js'), coveredEpub, coveredOut], { encoding: 'utf8' });
+    assert(coveredRun.status === 0,
+      `heal succeeds on a book that already has a cover (exit ${coveredRun.status})`);
+
+    if (fs.existsSync(coveredOut)) {
+      const cx = unzipTo(coveredOut, path.join(work, 'covered-x'));
+      const cOpf = fs.readFileSync(walk(cx).find(f => f.endsWith('.opf')), 'utf8');
+      assert(/properties="[^"]*\bcover-image\b/.test(cOpf) || /<meta\s+name="cover"/.test(cOpf),
+        'the repaired book still DECLARES its cover image, not just contains it');
+      assert(walk(cx).some(f => /cover\.jpe?g$/i.test(f)),
+        'the cover image itself is carried across');
+      // One cover page, not two: the original is furniture the rebuild replaces.
+      const coverRefs = (cOpf.match(/<itemref[^>]*idref="cover-xhtml"/g) || []).length;
+      assert(coverRefs === 1,
+        `the reading order opens on exactly one cover page (got ${coverRefs})`);
+      assert(validateEpub(coveredOut).success === true,
+        'the book with its cover preserved still validates');
+    } else {
+      assert(false, 'heal wrote the book that already had a cover');
+    }
+
     const inPlace = spawnSync(process.execPath, [path.join(__dirname, 'heal.js'), sickEpub, sickEpub],
       { encoding: 'utf8' });
     assert(inPlace.status !== 0 && /in place/.test(inPlace.stderr || ''),

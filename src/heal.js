@@ -19,6 +19,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const cheerio = require('cheerio');
 const {
   readVolume,
   createResourcePool,
@@ -26,6 +27,7 @@ const {
   writeEpub,
   EPUB_VERSION,
   LANGUAGE_FALLBACK,
+  COVER_IMAGE,
 } = require('./merge');
 const { validateEpub } = require('./validator');
 
@@ -73,6 +75,31 @@ function parseArgs(args) {
 }
 
 const LEGACY_DOCTYPE = /<!DOCTYPE\s+html\s+PUBLIC/i;
+
+/**
+ * A cover page is furniture, not content: one <img> and nothing to read. The
+ * repaired book writes a fresh one, so the original is taken out of the reading
+ * order first — otherwise the book opens on two covers in a row.
+ *
+ * Only a document that shows the declared cover image and carries no text
+ * qualifies. A first chapter that merely happens to open with a picture stays
+ * exactly where it is.
+ */
+function isCoverPage(book, chapter) {
+  if (!book.coverImagePath) return false;
+  const abs = path.join(book.root, chapter.path);
+  if (!fs.existsSync(abs)) return false;
+
+  const source = fs.readFileSync(abs, 'utf8');
+  const $ = cheerio.load(source, { xmlMode: true, decodeEntities: false });
+  if ($('body').text().replace(/\s+/g, '') !== '') return false;
+
+  const coverName = path.posix.basename(book.coverImagePath);
+  return $('img, image').toArray().some(el => {
+    const ref = $(el).attr('src') || $(el).attr('xlink:href') || '';
+    return path.posix.basename(decodeURIComponent(ref)) === coverName;
+  });
+}
 
 /**
  * What is wrong with this book, stated in terms of what the repair will do.
@@ -139,20 +166,41 @@ async function main() {
 
     const findings = diagnose(book);
 
+    // The cover the book already has is kept. Losing the declaration that says
+    // "this image is the cover" leaves the file in the container and the book
+    // blank on the shelf, which is a repair nobody asked for.
+    let coverImagePath = book.coverImagePath
+      ? path.join(book.root, book.coverImagePath)
+      : null;
+    if (coverImagePath && !fs.existsSync(coverImagePath)) {
+      findings.push(`the declared cover image is missing from the book (${book.coverImagePath}) → dropped the declaration`);
+      coverImagePath = null;
+    }
+    const coverPage = coverImagePath && book.chapters.find(ch => isCoverPage(book, ch));
+    if (coverPage) book.chapters = book.chapters.filter(ch => ch !== coverPage);
+
     book.hrefByPath = new Map();
     book.chapters.forEach((chapter, i) => {
       book.hrefByPath.set(chapter.path, `${i + 1}.xhtml`);
     });
 
     const pool = createResourcePool();
+    // The repaired book writes its cover to images/cover.jpeg, so that name is
+    // claimed before any chapter image can be allocated it.
+    if (coverImagePath) pool.reserve(COVER_IMAGE);
+    let bodiesRepaired = 0;
     const chapters = book.chapters.map(chapter => {
       const relocated = relocateChapter(chapter, book, pool);
+      if (relocated.bodyRepaired) bodiesRepaired++;
       return {
         href: book.hrefByPath.get(chapter.path),
         title: relocated.title,
         content: relocated.content,
       };
     });
+    if (bodiesRepaired > 0) {
+      findings.push(`${bodiesRepaired} document${bodiesRepaired === 1 ? '' : 's'} had content sitting outside <body> → wrapped`);
+    }
 
     for (const note of findings) console.log(`  healed: ${note}`);
     for (const note of pool.healed()) console.log(`  healed: dropped ${note}`);
@@ -167,7 +215,7 @@ async function main() {
       pageDirection: book.pageDirection,
       chapters,
       pool,
-      coverImagePath: null,
+      coverImagePath,
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);

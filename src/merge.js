@@ -262,6 +262,25 @@ function readNcxLabels(volumeRoot, ncxPath, name) {
  * Returns { name, root, title, creator, language, pageDirection, tocPath,
  *           chapters: [{ path, title }] }
  */
+/**
+ * Where the book keeps its cover image, if it declares one.
+ *
+ * A cover is not just a picture in the container: it is the manifest item a
+ * reader is told to use for the shelf thumbnail. EPUB 2 says so with
+ * <meta name="cover">, EPUB 3 with properties="cover-image". Carrying the file
+ * across without carrying that declaration leaves the image sitting unused and
+ * the book looking coverless, which is how a repaired library lost its covers.
+ */
+function findCoverImage($opf, manifest) {
+  const declared = $opf('metadata > meta[name="cover"]').attr('content');
+  if (declared && manifest.has(declared)) return manifest.get(declared).path;
+
+  for (const [, item] of manifest) {
+    if ((item.properties || '').split(/\s+/).includes('cover-image')) return item.path;
+  }
+  return '';
+}
+
 function readVolume(epubPath, volumeRoot, options = {}) {
   // Merging drops each volume's own table of contents, because the merged book
   // writes one of its own. Healing a single book keeps every spine document:
@@ -284,6 +303,7 @@ function readVolume(epubPath, volumeRoot, options = {}) {
     manifest.set(id, {
       path: resolveContainerPath(opfDir, decodeHref(href, what), what),
       mediaType: $opf(el).attr('media-type') || '',
+      properties: $opf(el).attr('properties') || '',
     });
   }
 
@@ -320,6 +340,7 @@ function readVolume(epubPath, volumeRoot, options = {}) {
     version: $opf('package').attr('version') || '',
     identifier: $opf('metadata > dc\\:identifier').first().text().trim(),
     ncxPath: ncx ? ncx.path : '',
+    coverImagePath: findCoverImage($opf, manifest),
     tocPath: dropTableOfContents ? spine[0] : '',
     chapters: readingOrder.map(containerPath => ({
       path: containerPath,
@@ -527,6 +548,30 @@ function modernizeContentDocument(source, what) {
 }
 
 /**
+ * Put a document's content back inside a <body>.
+ *
+ * A generator that assembles XHTML by concatenating strings can drop the body
+ * tags and leave the content sitting directly under <html> — the document still
+ * looks fine in a browser, which is forgiving, and fails every conformance
+ * check, which is not. One book shipped this way with 45 epubcheck errors.
+ *
+ * The repair is unambiguous: everything that is not the <head> belongs in the
+ * body, in the order it already appears.
+ */
+function repairMissingBody($) {
+  const html = $('html').first();
+  if (html.length === 0 || html.children('body').length > 0) return false;
+
+  const strays = html.children().not('head');
+  if (strays.length === 0) return false;
+
+  const body = $('<body></body>');
+  strays.each((_, el) => body.append($(el)));
+  html.append(body);
+  return true;
+}
+
+/**
  * Rewrite one chapter for its new home at OEBPS/<n>.xhtml.
  * Returns { title, content } — content is the modernized document when nothing
  * in it had to move.
@@ -542,7 +587,8 @@ function relocateChapter(chapter, volume, pool) {
   const source = modernizeContentDocument(raw, `${volume.name} → ${chapter.path}`);
   const $ = cheerio.load(source, { xmlMode: true, decodeEntities: false });
   const baseDir = path.posix.dirname(chapter.path);
-  let rewritten = false;
+  let rewritten = repairMissingBody($);
+  const bodyRepaired = rewritten;
 
   for (const el of $('*').toArray()) {
     for (const attr of REFERENCE_ATTRIBUTES) {
@@ -574,6 +620,7 @@ function relocateChapter(chapter, volume, pool) {
     title: chapter.title || decodeXmlEntities($('head > title').first().text()).trim()
       || path.posix.basename(chapter.path),
     content: rewritten ? $.xml() : source,
+    bodyRepaired,
   };
 }
 
@@ -801,4 +848,5 @@ module.exports = {
   writeEpub,
   EPUB_VERSION,
   LANGUAGE_FALLBACK,
+  COVER_IMAGE,
 };
