@@ -2,7 +2,7 @@ const { chromium } = require('playwright');
 const fs = require('fs');
 const path = require('path');
 
-async function generateCover(title, author, outputPath) {
+async function generateCover(title, author, outputPath, layout = 'vertical') {
   // Split title if it's too long, though vertical text handles it well.
   // Use a classic, elegant vertical layout for Chinese books.
   const html = `
@@ -18,7 +18,7 @@ async function generateCover(title, author, outputPath) {
           height: 2260px;
           background: linear-gradient(135deg, #1c2331 0%, #11151c 100%);
           color: #e0e0e0;
-          font-family: "Songti SC", "STSong", "Kaiti TC", serif;
+          font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
           display: flex;
           flex-direction: column;
           justify-content: center;
@@ -44,7 +44,7 @@ async function generateCover(title, author, outputPath) {
           border: 1px solid rgba(255, 255, 255, 0.05);
           pointer-events: none;
         }
-        .title {
+        .layout-vertical .title {
           font-size: 200px;
           font-weight: normal;
           letter-spacing: 40px;
@@ -55,19 +55,19 @@ async function generateCover(title, author, outputPath) {
           display: flex;
           align-items: center;
         }
-        .author-container {
+        .layout-vertical .author-container {
           position: absolute;
           bottom: 200px;
           left: 200px;
         }
-        .author {
+        .layout-vertical .author {
           font-size: 70px;
           letter-spacing: 20px;
           opacity: 0.6;
           writing-mode: vertical-rl;
           text-orientation: upright;
         }
-        .publisher {
+        .layout-vertical .publisher {
           position: absolute;
           bottom: 200px;
           right: 200px;
@@ -78,9 +78,47 @@ async function generateCover(title, author, outputPath) {
           writing-mode: vertical-rl;
           text-orientation: upright;
         }
+        
+        /* HORIZONTAL LAYOUT */
+        .layout-horizontal .border, .layout-horizontal .border-inner {
+          display: none; /* Modern, borderless look */
+        }
+        .layout-horizontal .title {
+          font-size: 140px;
+          font-weight: 800;
+          letter-spacing: -2px;
+          line-height: 1.1;
+          text-align: center;
+          width: 80%;
+          margin-bottom: 60px;
+          text-shadow: 0 20px 40px rgba(0,0,0,0.4);
+        }
+        .layout-horizontal .author-container {
+          position: absolute;
+          bottom: 300px;
+          width: 100%;
+          text-align: center;
+        }
+        .layout-horizontal .author {
+          font-size: 60px;
+          font-weight: 600;
+          letter-spacing: 8px;
+          opacity: 0.8;
+          text-transform: uppercase;
+        }
+        .layout-horizontal .publisher {
+          position: absolute;
+          bottom: 120px;
+          width: 100%;
+          text-align: center;
+          font-size: 35px;
+          letter-spacing: 12px;
+          opacity: 0.3;
+          text-transform: uppercase;
+        }
       </style>
     </head>
-    <body>
+    <body class="layout-${layout}">
       <div class="border"></div>
       <div class="border-inner"></div>
       <div class="title">${title}</div>
