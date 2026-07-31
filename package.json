@@ -35,8 +35,13 @@
     "convert": "node src/builder.js",
     "start": "node src/server.js",
     "merge": "node src/merge.js",
+    "heal": "node src/heal.js",
     "validate": "node src/validator.js",
-    "test": "node src/test-validation.js && node src/test-builder.js"
+    "epubcheck": "node scripts/fetch-epubcheck.mjs",
+    "pretest": "node scripts/fetch-epubcheck.mjs",
+    "test": "node src/test-validation.js && node src/test-builder.js && npm run test:spec",
+    "test:spec": "node src/test-web-spec.js && node src/test-epub-conformance.js && node src/test-core-spec.js",
+    "readiness": "node scripts/check-release-readiness.mjs"
   },
   "devDependencies": {
     "playwright": "^1.62.1"

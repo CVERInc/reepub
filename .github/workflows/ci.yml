@@ -27,6 +27,15 @@ jobs:
             npm install --no-audit --no-fund
           fi
 
+      # The conformance suite renders a cover with Playwright and holds the
+      # finished book to the official epubcheck. Both are fetched here so the
+      # pipeline checks exactly what scripts/test.sh checks locally.
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Fetch epubcheck
+        run: npm run epubcheck
+
       - name: Test
         run: npm test --if-present
 

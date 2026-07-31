@@ -38,7 +38,14 @@ difference is ownership:
   *physically cannot* leave the machine. Privacy that's structural, not a promise.
 - **Traditional Chinese & English** recognition out of the box (`zh-Hant` + `en-US`).
 - **Validated EPUB3** — every book is run through a built-in, dependency-free
-  structural validator before it's handed back; one that fails is rejected, not shipped.
+  structural validator before it's handed back; one that fails is deleted and the
+  command exits non-zero. `npm test` goes further and holds a freshly built book
+  to the official [epubcheck](https://github.com/w3c/epubcheck) at
+  **0 errors / 0 warnings**.
+- **Repairs the books you already have** — `reepub heal` fixes a broken EPUB and
+  tells you exactly what it changed. Five real Traditional-Chinese volumes
+  carrying four epubcheck errors each came out at zero, with every chapter and
+  their vertical right-to-left layout intact. See [Healing](#healing-broken-books).
 - **MIT-licensed**, self-contained, forkable, free forever.
 
 ## Features
@@ -118,15 +125,71 @@ node src/builder.js ~/Documents/scanned_book.pdf ~/Desktop/my_book.epub "我的�
    `toc.ncx`, per-chapter XHTML, cover) and zips it with the uncompressed
    `mimetype` entry first.
 4. **Validation** — `src/validator.js` checks the ZIP mimetype layout,
-   `container.xml`, the OPF manifest/spine, XHTML well-formedness (via `xmllint`),
-   and orphan files. A book that fails validation is rejected, not shipped.
+   `container.xml`, the OPF manifest/spine, XHTML well-formedness, that every
+   content document actually has a `<body>`, that no internal reference dangles,
+   and that nothing escapes the container. A book that fails is deleted and the
+   command exits non-zero.
+
+Every package document, table of contents and navigation document comes from
+`src/binder.js` — the single place allowed to emit one. See
+[PRINCIPLES.md](PRINCIPLES.md) for why that boundary exists and what CI does to
+keep it.
+
+## Healing broken books
+
+Ebooks in the wild are broken in ways their owners never see: a forgiving reader
+shows the book anyway, so the damage only surfaces when something strict refuses
+it. Every volume of a real Traditional-Chinese library we tested carries four
+epubcheck errors of its own.
+
+```bash
+node src/heal.js "金庸 - 鹿鼎記.epub" 鹿鼎記-healed.epub
+```
+
+```
+Healing 金庸 - 鹿鼎記.epub → 鹿鼎記-healed.epub
+  鹿鼎記 — 55 documents
+  healed: EPUB 2.0 spine carried page-progression-direction → rebuilt as EPUB 3.0
+  healed: table of contents identifier disagreed with the package → unified
+  healed: 55 chapters declared the XHTML 1.1 doctype → <!DOCTYPE html>
+  healed: dropped @font-face "DroidFont", serif, sans-serif → res:///system/fonts/DroidSansFallback.ttf cannot load in an EPUB
+  ✓ 鹿鼎記-healed.epub (1641 KB)
+  ✓ EPUB valid
+```
+
+Healing never edits in place, and a repair that fails validation is deleted
+rather than handed back. `reepub merge` performs the same repairs on the volumes
+it combines — it is the same engine, so the two cannot drift apart.
+
+What gets repaired:
+
+- **EPUB 2 packages using an EPUB 3 spine attribute** — the merged book is EPUB 3,
+  where `page-progression-direction` is legal, so vertical right-to-left series
+  keep their reading direction *and* validate.
+- **A table of contents whose identifier disagrees with the package** — one
+  identifier is minted for the merged book and used in both.
+- **Chapters still declaring the XHTML 1.1 doctype** — brought forward to
+  `<!DOCTYPE html>`, with the entities that doctype used to define (`&nbsp;`,
+  `&mdash;`) rewritten as numeric references so nothing stops parsing.
+- **Stylesheets pointing at fonts that do not exist** — an `@font-face` whose only
+  source is `res:///system/fonts/DroidSansFallback.ttf` cannot load anywhere
+  except the Android reader that wrote it, and epubcheck rejects it outright.
+
+Repair is never silent, and never a guess — an entity or reference reepub cannot
+resolve stops the run rather than being mangled into something that merely looks
+right.
 
 ## Validation & tests
 
 ```bash
-npm test                          # run the validator unit tests
+npm test                          # unit, spec and conformance suites
 npm run validate <file.epub>      # validate any EPUB (or unpacked dir)
+npm run epubcheck                 # fetch the official epubcheck jar (cached)
 ```
+
+`npm test` builds a real book and runs the official epubcheck against it. The
+jar is fetched once into `~/.cache/reepub/` and reused; CI does the same, so the
+local command and the pipeline check exactly the same thing.
 
 ## License
 

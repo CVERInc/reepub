@@ -46,6 +46,7 @@ await checkVersionConsistency();
 await checkReleaseTag();
 await checkChangelog();
 await checkPackHygiene();
+await checkPrinciples();
 
 report();
 
@@ -177,6 +178,124 @@ function sourcePath(s) {
 }
 
 // --- helpers ----------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// reepub-specific gates: the reverse constraints in PRINCIPLES.md.
+//
+// Each rule below is the machine-checkable half of a promise the README makes.
+// They exist because every one of them was violated in a shipped version, and a
+// promise that only a document asserts is one an audit finds, not CI.
+// ---------------------------------------------------------------------------
+
+async function checkPrinciples() {
+  const PRINCIPLE_RULES = [
+  {
+    // PRINCIPLES.md §1 — Offline by architecture.
+    principle: "§1 offline by architecture",
+    why: "a listener on any other address puts the reader's books on the network",
+    files: ["src/server.js"],
+    pattern: /\.listen\s*\(/g,
+    // The host may be written inline or held in a constant; either is fine as
+    // long as the value it resolves to is loopback.
+    accept: (line, source) => {
+      const args = line.slice(line.indexOf(".listen(") + ".listen(".length);
+      const second = args.split(",")[1];
+      if (second === undefined) return false;
+      const token = second.trim().replace(/[)'"`].*$/, "").trim();
+      if (isLoopback(token)) return true;
+      const binding = source.text.match(
+        new RegExp(`\\b(?:const|let|var)\\s+${escapeRegex(token)}\\s*=\\s*['"\`]([^'"\`]+)`));
+      return Boolean(binding && isLoopback(binding[1]));
+    },
+    message: "listen() without a host that resolves to 127.0.0.1",
+  },
+  {
+    // PRINCIPLES.md §2 — Never ship an invalid book.
+    principle: "§2 never ship an invalid book",
+    why: "this is how a 45-error EPUB was written to disk with exit code 0",
+    files: null,
+    pattern: /\.catch\s*\(\s*console\.error\s*\)/g,
+    message: "a pipeline ending in .catch(console.error), which logs a failure and exits 0",
+  },
+  {
+    // PRINCIPLES.md §3 — One assembly path.
+    principle: "§3 one assembly path",
+    why: "three hand-rolled package templates drifted into three different bugs",
+    files: null,
+    exempt: ["src/binder.js"],
+    // The macOS app is a standalone Swift build with no Node runtime, so it
+    // necessarily carries its own writer. PRINCIPLES.md §6 governs that pair,
+    // and scripts/check-sync-markers.mjs is what keeps them honest.
+    extensions: [".js", ".mjs"],
+    pattern: /<package[\s>]/g,
+    message: "a <package> template outside src/binder.js",
+  },
+  {
+    // PRINCIPLES.md §5 — Restraint. A shipped script had the maintainer's
+    // iCloud path baked into it, so it only ever worked on one machine.
+    principle: "§5 restraint",
+    why: "a hardcoded personal path makes a tool that works on exactly one machine",
+    files: null,
+    pattern: /\/Users\/[A-Za-z0-9._-]+\/|Mobile Documents/g,
+    message: "a hardcoded personal filesystem path",
+  },
+];
+
+  const SOURCE_EXTENSIONS = [".js", ".mjs", ".swift"];
+  // Scanned files are the ones git tracks: a release is made of what the
+  // repository contains, not of whatever scratch scripts happen to sit in the
+  // working tree. Test files quote the defects on purpose, and this checker has
+  // to spell out the very patterns it forbids.
+  const SELF = "scripts/check-release-readiness.mjs";
+  const IS_TEST = /(^|\/)test-[^/]*\.(js|mjs)$/;
+
+  const sources = [];
+  for (const rel of trackedFiles()) {
+    if (rel === SELF || IS_TEST.test(rel)) continue;
+    if (!SOURCE_EXTENSIONS.some((ext) => rel.endsWith(ext))) continue;
+    sources.push({ rel, text: await readFile(join(repoRoot, rel), "utf8") });
+  }
+
+  if (sources.length === 0) {
+    warn("no tracked source files found to check PRINCIPLES.md against — is this a git repo root?");
+    return;
+  }
+
+  for (const rule of PRINCIPLE_RULES) {
+    const scope = sources
+      .filter((s) => (rule.files ? rule.files.includes(s.rel) : !(rule.exempt || []).includes(s.rel)))
+      .filter((s) => !rule.extensions || rule.extensions.some((ext) => s.rel.endsWith(ext)));
+
+    for (const source of scope) {
+      source.text.split("\n").forEach((line, i) => {
+        // A line that only talks about the rule (a comment) is not a violation.
+        if (/^\s*(\/\/|\*|#)/.test(line)) return;
+        rule.pattern.lastIndex = 0;
+        if (!rule.pattern.test(line)) return;
+        if (rule.accept && rule.accept(line, source)) return;
+        fail(`PRINCIPLES.md ${rule.principle}: ${source.rel}:${i + 1} has ${rule.message} — ${rule.why}`);
+      });
+    }
+  }
+
+  if (!(await exists(join(repoRoot, "PRINCIPLES.md")))) {
+    fail("PRINCIPLES.md is missing — the reverse constraints these gates enforce have to be written down");
+  }
+}
+
+function isLoopback(value) {
+  return value === "127.0.0.1" || value === "localhost" || value === "::1";
+}
+
+// Tracked files plus new ones git would accept, minus anything .gitignore
+// excludes. A file that is not committed yet is exactly where a fresh violation
+// lives, so scanning only the index would let every new source file through.
+function trackedFiles() {
+  const result = spawnSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"],
+    { cwd: repoRoot, encoding: "utf8" });
+  if (result.status !== 0) return [];
+  return [...new Set(result.stdout.split("\n").filter(Boolean))];
+}
 
 function report() {
   if (warnings.length) {
