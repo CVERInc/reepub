@@ -71,6 +71,12 @@ function parseTitle(opfXml) {
   return m ? m[1] : '';
 }
 
+/** Extract page-progression-direction from OPF spine (e.g. "rtl"). */
+function parsePageDirection(opfXml) {
+  const m = opfXml.match(/page-progression-direction="([^"]+)"/);
+  return m ? m[1] : '';
+}
+
 /** Resolve OPF rootfile path from container.xml. */
 function resolveOpfPath(epubPath) {
   const container = extractFile(epubPath, 'META-INF/container.xml').toString('utf8');
@@ -84,13 +90,14 @@ function resolveOpfPath(epubPath) {
 
 /**
  * Extract chapter data from one EPUB volume.
- * Returns { chapters: [{href, content, label}], css, xpgt, opfDir }
+ * Returns { chapters: [{href, content, label}], css, xpgt, opfDir, pageDirection }
  */
 function extractVolume(epubPath) {
   const opfPath = resolveOpfPath(epubPath);
   const opfDir = path.dirname(opfPath);
   const opfXml = extractFile(epubPath, opfPath).toString('utf8');
   const title = parseTitle(opfXml);
+  const pageDirection = parsePageDirection(opfXml);
 
   // spine hrefs (relative to opfDir)
   const spineHrefs = parseSpineHrefs(opfXml);
@@ -123,7 +130,7 @@ function extractVolume(epubPath) {
   const xpgtEntry = entries.find(e => e.endsWith('.xpgt'));
   if (xpgtEntry) xpgt = extractFile(epubPath, xpgtEntry);
 
-  return { title, chapters, css, xpgt, opfDir };
+  return { title, chapters, css, xpgt, opfDir, pageDirection };
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +153,7 @@ function buildTocXhtml(title, chapters) {
   ].join('\r\n');
 }
 
-function buildContentOpf(title, author, chapters, hasCss, hasXpgt) {
+function buildContentOpf(title, author, chapters, hasCss, hasXpgt, pageDirection) {
   const uid = require('crypto').randomUUID();
   const items = ['    <item id="P0" href="0.xhtml" media-type="application/xhtml+xml"/>'];
   const spine = ['    <itemref idref="P0"/>'];
@@ -160,6 +167,8 @@ function buildContentOpf(title, author, chapters, hasCss, hasXpgt) {
   if (hasCss) items.push('    <item id="css" href="stylesheet.css" media-type="text/css"/>');
   if (hasXpgt) items.push('    <item id="xpgt" href="page-template.xpgt" media-type="application/vnd.adobe-page-template+xml"/>');
 
+  const dirAttr = pageDirection ? ` page-progression-direction="${pageDirection}"` : '';
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="2.0">
   <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
@@ -171,7 +180,7 @@ ${author ? `    <dc:creator opf:role="aut">${author}</dc:creator>\n` : ''}\
   <manifest>
 ${items.join('\n')}
   </manifest>
-  <spine toc="ncx">
+  <spine${dirAttr} toc="ncx">
 ${spine.join('\n')}
   </spine>
 </package>`;
@@ -211,7 +220,7 @@ ${navPoints.join('\n')}
 // zip helper (uses system zip, same as builder.js)
 // ---------------------------------------------------------------------------
 
-function writeEpub(outputPath, title, author, allChapters, css, xpgt) {
+function writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirection) {
   const tmp = path.join(path.dirname(outputPath), `.reepub-merge-${Date.now()}`);
   const oebps = path.join(tmp, 'OEBPS');
   const meta = path.join(tmp, 'META-INF');
@@ -230,7 +239,7 @@ function writeEpub(outputPath, title, author, allChapters, css, xpgt) {
 </container>`);
 
   // OEBPS files
-  fs.writeFileSync(path.join(oebps, 'content.opf'), buildContentOpf(title, author, allChapters, !!css, !!xpgt));
+  fs.writeFileSync(path.join(oebps, 'content.opf'), buildContentOpf(title, author, allChapters, !!css, !!xpgt, pageDirection));
   fs.writeFileSync(path.join(oebps, 'toc.ncx'), buildTocNcx(title, allChapters));
   fs.writeFileSync(path.join(oebps, '0.xhtml'), buildTocXhtml(title, allChapters));
   if (css) fs.writeFileSync(path.join(oebps, 'stylesheet.css'), css);
@@ -314,6 +323,7 @@ Limitations:
   const allChapters = [];
   let css = null;
   let xpgt = null;
+  let pageDirection = '';
 
   for (let v = 0; v < inputPaths.length; v++) {
     const vol = extractVolume(inputPaths[v]);
@@ -321,6 +331,7 @@ Limitations:
       if (!title) title = vol.title.replace(/[一二三四五六七八九十\d]+$/, '').trim() || vol.title;
       css = vol.css;
       xpgt = vol.xpgt;
+      pageDirection = vol.pageDirection;
     }
     for (const ch of vol.chapters) allChapters.push(ch);
     console.log(`  vol ${v + 1}: ${vol.title} (${vol.chapters.length} chapters)`);
@@ -328,7 +339,7 @@ Limitations:
 
   console.log(`  total: ${allChapters.length} chapters`);
 
-  writeEpub(outputPath, title, author, allChapters, css, xpgt);
+  writeEpub(outputPath, title, author, allChapters, css, xpgt, pageDirection);
 
   const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);
   console.log(`  ✓ ${path.basename(outputPath)} (${sizeKb} KB)`);
