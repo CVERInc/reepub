@@ -1,6 +1,12 @@
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const cheerio = require('cheerio');
 const { execFileSync } = require('child_process');
+
+// Attributes that can carry an internal reference from an XHTML document.
+// SVG cover pages point at their image through xlink:href, so it counts too.
+const REFERENCE_ATTRIBUTES = ['href', 'src', 'xlink:href'];
 
 /**
  * Helper to recursively find all files in a directory
@@ -21,16 +27,58 @@ function getFilesRecursively(dir, baseDir = dir) {
 }
 
 /**
- * Parser for XML element attributes
+ * Reads an XML document, proves it is well-formed, and hands back a parsed
+ * document. Every XML this validator inspects goes through here: a real parser
+ * is what makes attribute-carrying elements (<manifest id="...">) and
+ * commented-out markup impossible to misread, which pattern matching could
+ * never guarantee.
+ * @param {string} absPath Absolute path to the document
+ * @param {string} label Container-relative name to use in error messages
+ * @returns {cheerio.CheerioAPI}
  */
-function parseAttributes(elementString) {
-  const attrs = {};
-  const regex = /(\w+(?:-\w+)*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g;
-  let match;
-  while ((match = regex.exec(elementString)) !== null) {
-    attrs[match[1]] = match[2] !== undefined ? match[2] : match[3];
+function loadXml(absPath, label) {
+  try {
+    execFileSync('xmllint', ['--noout', absPath], { stdio: 'pipe' });
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      throw new Error('EPUB validation error: "xmllint" is required for XML well-formedness checks but was not found on PATH');
+    }
+    // xmllint reports against the path it was handed, which for a zipped book
+    // is a scratch directory the reader has never heard of.
+    const errMsg = (err.stderr ? err.stderr.toString() : err.message).replaceAll(absPath, label);
+    throw new Error(`EPUB validation error: XML well-formedness check failed for "${label}":\n${errMsg.trim()}`);
   }
-  return attrs;
+  return cheerio.load(fs.readFileSync(absPath, 'utf8'), { xmlMode: true });
+}
+
+/**
+ * Resolves a path declared inside a book against the container root.
+ * Existence must never be answered by the host filesystem: a book that reaches
+ * outside itself is broken no matter what the machine happens to hold there.
+ * @param {string} epubDir Container root
+ * @param {string} baseDir Directory the reference is relative to
+ * @param {string} ref Decoded, fragment-free path
+ * @returns {{inside: boolean, absPath: string, relPath: string}}
+ */
+function resolveInContainer(epubDir, baseDir, ref) {
+  const absPath = path.resolve(baseDir, ref);
+  const relPath = path.relative(epubDir, absPath);
+  const escapes = path.isAbsolute(relPath) || relPath === '..' || relPath.startsWith('..' + path.sep);
+  return { inside: !escapes, absPath, relPath };
+}
+
+/**
+ * EPUB hrefs are URLs, so percent-encoding must be undone before any path
+ * lookup — and an undecodable one is a defect in the book, not a crash.
+ * @param {string} raw
+ * @param {string} what Subject of the error message, e.g. 'Manifest item "x" href'
+ */
+function decodeRef(raw, what) {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    throw new Error(`EPUB validation error: ${what} "${raw}" is not valid percent-encoding`);
+  }
 }
 
 /**
@@ -47,25 +95,67 @@ function validateZipMimetype(epubPath) {
 
   // Signature PK\x03\x04 (0x04034b50 in little endian)
   if (buf.readUInt32LE(0) !== 0x04034b50) {
-    throw new Error('Not a valid ZIP file (invalid local file header signature)');
+    throw new Error('EPUB validation error: Not a valid ZIP file (invalid local file header signature)');
   }
-  
+
   // Compression method (offset 8, 2 bytes) must be 0 (Stored)
   const compMethod = buf.readUInt16LE(8);
   if (compMethod !== 0) {
     throw new Error('EPUB validation error: "mimetype" file must be uncompressed (compression method must be Stored/0)');
   }
-  
+
   // Filename length (offset 26, 2 bytes) must be 8
   const filenameLen = buf.readUInt16LE(26);
   if (filenameLen !== 8) {
     throw new Error('EPUB validation error: "mimetype" must be the first file in the ZIP archive');
   }
-  
+
   // Filename (offset 30, 8 bytes) must be 'mimetype'
   const filename = buf.toString('utf8', 30, 38);
   if (filename !== 'mimetype') {
     throw new Error(`EPUB validation error: "mimetype" must be the first file in the ZIP archive (found "${filename}")`);
+  }
+}
+
+/**
+ * Structural checks that apply to an XHTML content document: real <body>
+ * markup, and internal references that actually resolve inside the container.
+ * @param {cheerio.CheerioAPI} $doc Parsed document
+ * @param {string} epubDir Container root
+ * @param {string} docRelPath Path of the document from the container root
+ */
+function validateXhtmlDocument($doc, epubDir, docRelPath) {
+  const html = $doc('html').first();
+  if (html.length === 0) {
+    throw new Error(`EPUB validation error: XHTML document "${docRelPath}" has no <html> root element`);
+  }
+  if (html.children('body').length === 0) {
+    throw new Error(`EPUB validation error: XHTML document "${docRelPath}" has no <body> element; content must live inside <html><body>...</body></html>`);
+  }
+
+  const docDir = path.dirname(path.resolve(epubDir, docRelPath));
+  for (const el of $doc('*').toArray()) {
+    for (const attr of REFERENCE_ATTRIBUTES) {
+      const raw = $doc(el).attr(attr);
+      if (!raw) continue;
+      const ref = raw.trim();
+
+      // Fragments stay in the document; scheme-qualified and protocol-relative
+      // references leave the book entirely. Neither names a packaged file.
+      if (!ref || ref.startsWith('#') || ref.startsWith('//')) continue;
+      if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(ref)) continue;
+
+      const target = ref.split('#')[0];
+      if (!target) continue;
+      const decoded = decodeRef(target, `Reference ${attr}="${ref}" in "${docRelPath}"`);
+      const location = resolveInContainer(epubDir, docDir, decoded);
+      if (!location.inside) {
+        throw new Error(`EPUB validation error: "${docRelPath}" references <${el.name} ${attr}="${ref}">, which escapes the EPUB container; every reference must resolve to a file inside the book`);
+      }
+      if (!fs.existsSync(location.absPath)) {
+        throw new Error(`EPUB validation error: "${docRelPath}" references <${el.name} ${attr}="${ref}">, but the EPUB contains no such file (expected it at "${location.relPath}", relative to the EPUB root)`);
+      }
+    }
   }
 }
 
@@ -88,127 +178,99 @@ function validateDirectory(epubDir) {
   if (!fs.existsSync(containerPath)) {
     throw new Error('EPUB validation error: "META-INF/container.xml" is missing');
   }
-  
-  try {
-    execFileSync('xmllint', ['--noout', containerPath], { stdio: 'pipe' });
-  } catch (err) {
-    const errMsg = err.stderr ? err.stderr.toString() : err.message;
-    throw new Error(`EPUB validation error: META-INF/container.xml is not well-formed XML:\n${errMsg}`);
-  }
 
-  const containerContent = fs.readFileSync(containerPath, 'utf8');
-  const rootfileMatch = containerContent.match(/<rootfile\s+[^>]*full-path=["']([^"']+)["']/);
-  if (!rootfileMatch) {
+  const $container = loadXml(containerPath, 'META-INF/container.xml');
+  const rootfiles = $container('rootfile').toArray()
+    .map(el => ({ fullPath: $container(el).attr('full-path'), mediaType: $container(el).attr('media-type') }))
+    .filter(rf => rf.fullPath);
+  if (rootfiles.length === 0) {
     throw new Error('EPUB validation error: META-INF/container.xml does not declare a rootfile with full-path attribute');
   }
-  const opfPathRelative = rootfileMatch[1];
+  // The package document is the rootfile carrying the OPF media type; other
+  // rootfiles are legal and are not this validator's business.
+  const rootfile = rootfiles.find(rf => rf.mediaType === 'application/oebps-package+xml') || rootfiles[0];
+  const opfPathRelative = decodeRef(rootfile.fullPath, 'The container.xml rootfile full-path');
 
   // 3. OPF check
-  const opfPath = path.join(epubDir, opfPathRelative);
-  if (!fs.existsSync(opfPath)) {
+  const opfLocation = resolveInContainer(epubDir, epubDir, opfPathRelative);
+  if (!opfLocation.inside) {
+    throw new Error(`EPUB validation error: container.xml rootfile full-path "${opfPathRelative}" escapes the EPUB container; it must name a file inside the book`);
+  }
+  if (!fs.existsSync(opfLocation.absPath)) {
     throw new Error(`EPUB validation error: OPF rootfile "${opfPathRelative}" declared in container.xml does not exist`);
   }
 
-  try {
-    execFileSync('xmllint', ['--noout', opfPath], { stdio: 'pipe' });
-  } catch (err) {
-    const errMsg = err.stderr ? err.stderr.toString() : err.message;
-    throw new Error(`EPUB validation error: OPF file "${opfPathRelative}" is not well-formed XML:\n${errMsg}`);
-  }
+  const $opf = loadXml(opfLocation.absPath, opfPathRelative);
 
-  const opfContent = fs.readFileSync(opfPath, 'utf8');
-  
   // Parse manifest
-  const manifestMatch = opfContent.match(/<manifest>([\s\S]*?)<\/manifest>/);
-  if (!manifestMatch) {
+  if ($opf('manifest').length === 0) {
     throw new Error(`EPUB validation error: OPF file "${opfPathRelative}" is missing a <manifest> element`);
   }
-  const manifestContent = manifestMatch[1];
-  const itemRegex = /<item\s+([^>]+)\/?>/g;
-  let match;
-  const manifestItems = {};
-  
-  while ((match = itemRegex.exec(manifestContent)) !== null) {
-    const attrs = parseAttributes(match[1]);
-    if (!attrs.id || !attrs.href) {
-      throw new Error(`EPUB validation error: Manifest <item> is missing id or href attribute: ${match[0]}`);
+  const manifestItems = new Map();
+  for (const el of $opf('manifest > item').toArray()) {
+    const id = $opf(el).attr('id');
+    const href = $opf(el).attr('href');
+    if (!id || !href) {
+      throw new Error(`EPUB validation error: Manifest <item> is missing id or href attribute: ${$opf.html(el)}`);
     }
-    manifestItems[attrs.id] = {
-      id: attrs.id,
-      href: attrs.href,
-      mediaType: attrs['media-type']
-    };
+    manifestItems.set(id, { id, href, mediaType: $opf(el).attr('media-type') || '' });
   }
 
-  // Parse spine
-  const spineMatch = opfContent.match(/<spine([^>]*)>([\s\S]*?)<\/spine>/);
-  if (!spineMatch) {
+  // Parse spine and validate its item references
+  if ($opf('spine').length === 0) {
     throw new Error(`EPUB validation error: OPF file "${opfPathRelative}" is missing a <spine> element`);
   }
-  const spineContent = spineMatch[2];
-  const itemrefRegex = /<itemref\s+([^>]+)\/?>/g;
-  const spineRefs = [];
-  
-  while ((match = itemrefRegex.exec(spineContent)) !== null) {
-    const attrs = parseAttributes(match[1]);
-    if (!attrs.idref) {
-      throw new Error(`EPUB validation error: Spine <itemref> is missing idref attribute: ${match[0]}`);
+  for (const el of $opf('spine > itemref').toArray()) {
+    const idref = $opf(el).attr('idref');
+    if (!idref) {
+      throw new Error(`EPUB validation error: Spine <itemref> is missing idref attribute: ${$opf.html(el)}`);
     }
-    spineRefs.push(attrs.idref);
-  }
-
-  // 4. Validate spine item references
-  for (const idref of spineRefs) {
-    if (!manifestItems[idref]) {
+    if (!manifestItems.has(idref)) {
       throw new Error(`EPUB validation error: Spine refers to item idref "${idref}" which is not declared in the manifest`);
     }
   }
 
-  // 5. Validate manifest file existence and strict XML/XHTML formatting
-  const opfDir = path.dirname(opfPath);
+  // 4. Validate manifest containment, file existence and document structure
+  const opfDir = path.dirname(opfLocation.absPath);
   const manifestPaths = new Set();
 
-  for (const id in manifestItems) {
-    const item = manifestItems[id];
-    const decodedHref = decodeURIComponent(item.href);
-    const fileAbsPath = path.resolve(opfDir, decodedHref);
+  for (const item of manifestItems.values()) {
+    const decodedHref = decodeRef(item.href, `Manifest item "${item.id}" href`);
+    const location = resolveInContainer(epubDir, opfDir, decodedHref);
 
-    if (!fs.existsSync(fileAbsPath)) {
-      throw new Error(`EPUB validation error: Manifest item "${item.id}" references file "${decodedHref}" which does not exist`);
+    if (!location.inside) {
+      throw new Error(`EPUB validation error: Manifest item "${item.id}" references "${decodedHref}", which escapes the EPUB container; every manifest href must resolve to a file inside the book`);
+    }
+    if (!fs.existsSync(location.absPath)) {
+      throw new Error(`EPUB validation error: Manifest item "${item.id}" references file "${decodedHref}" which does not exist (expected "${location.relPath}" inside the EPUB)`);
     }
 
     // Save relative path from EPUB root for orphan detection
-    const fileRelToRoot = path.relative(epubDir, fileAbsPath);
-    manifestPaths.add(path.normalize(fileRelToRoot));
+    manifestPaths.add(path.normalize(location.relPath));
 
-    // XHTML/XML well-formedness validation
-    const mediaType = item.mediaType || '';
-    const ext = path.extname(fileAbsPath).toLowerCase();
-    const isXml = mediaType === 'application/xhtml+xml' || 
-                  mediaType === 'application/x-dtbncx+xml' || 
-                  mediaType.endsWith('+xml') || 
-                  ext === '.xhtml' || 
-                  ext === '.xml' || 
+    const ext = path.extname(location.absPath).toLowerCase();
+    const isXhtml = item.mediaType === 'application/xhtml+xml' || ext === '.xhtml';
+    const isXml = isXhtml ||
+                  item.mediaType.endsWith('+xml') ||
+                  ext === '.xml' ||
                   ext === '.ncx';
-    
+
     if (isXml) {
-      try {
-        execFileSync('xmllint', ['--noout', fileAbsPath], { stdio: 'pipe' });
-      } catch (err) {
-        const errMsg = err.stderr ? err.stderr.toString() : err.message;
-        throw new Error(`EPUB validation error: XML well-formedness check failed for "${decodedHref}":\n${errMsg.trim()}`);
+      const $doc = loadXml(location.absPath, location.relPath);
+      if (isXhtml) {
+        validateXhtmlDocument($doc, epubDir, location.relPath);
       }
     }
   }
 
-  // 6. Orphan File Detection (all files in directory must be in manifest or exempted)
+  // 5. Orphan File Detection (all files in directory must be in manifest or exempted)
   const allFiles = getFilesRecursively(epubDir);
   for (const fileRelPath of allFiles) {
     const normalizedPath = path.normalize(fileRelPath);
-    
+
     // Exempt files that aren't declared in manifest
     if (normalizedPath === 'mimetype') continue;
-    if (normalizedPath === path.normalize(opfPathRelative)) continue;
+    if (normalizedPath === path.normalize(opfLocation.relPath)) continue;
     if (normalizedPath.startsWith('META-INF' + path.sep)) continue;
     if (path.basename(normalizedPath) === '.DS_Store') continue;
 
@@ -219,46 +281,46 @@ function validateDirectory(epubDir) {
 }
 
 /**
- * Validates an EPUB file (or unpacked directory)
+ * Validates an EPUB file (or unpacked directory).
+ * Never throws: a malformed book, an unreadable path and unusable scratch
+ * space are all reported through the returned object, never as an exception.
  * @param {string} targetPath Absolute path to .epub file or folder
  * @returns {{success: boolean, error?: string}}
  */
 function validateEpub(targetPath) {
-  const absolutePath = path.resolve(targetPath);
-  if (!fs.existsSync(absolutePath)) {
-    return { success: false, error: `Path does not exist: ${absolutePath}` };
-  }
+  let scratchDir = null;
+  try {
+    const absolutePath = path.resolve(targetPath);
+    if (!fs.existsSync(absolutePath)) {
+      return { success: false, error: `Path does not exist: ${absolutePath}` };
+    }
 
-  const stat = fs.statSync(absolutePath);
-  
-  if (stat.isDirectory()) {
-    try {
+    if (fs.statSync(absolutePath).isDirectory()) {
       validateDirectory(absolutePath);
       return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
     }
-  } else {
+
     // It's a file, validate mimetype first, then extract and validate directory
+    validateZipMimetype(absolutePath);
+
+    // Scratch space lives in the system temp dir, never beside the EPUB: the
+    // book's own directory may be read-only, and mkdtemp is what keeps two
+    // validations started in the same millisecond out of each other's files.
+    scratchDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reepub-validate-'));
     try {
-      validateZipMimetype(absolutePath);
+      execFileSync('unzip', ['-q', absolutePath, '-d', scratchDir], { stdio: 'pipe' });
     } catch (err) {
-      return { success: false, error: err.message };
+      const errMsg = err.stderr ? err.stderr.toString().trim() : err.message;
+      throw new Error(`EPUB validation error: could not unzip "${absolutePath}":\n${errMsg}`);
     }
 
-    const tempValDir = path.join(path.dirname(absolutePath), `temp-epub-val-${Date.now()}`);
-    fs.mkdirSync(tempValDir, { recursive: true });
-
-    try {
-      execFileSync('unzip', ['-q', absolutePath, '-d', tempValDir]);
-      validateDirectory(tempValDir);
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: err.message };
-    } finally {
-      if (fs.existsSync(tempValDir)) {
-        fs.rmSync(tempValDir, { recursive: true, force: true });
-      }
+    validateDirectory(scratchDir);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  } finally {
+    if (scratchDir) {
+      fs.rmSync(scratchDir, { recursive: true, force: true });
     }
   }
 }
@@ -270,7 +332,7 @@ if (require.main === module) {
     console.error('Usage: node src/validator.js <path-to-epub-file-or-dir>');
     process.exit(1);
   }
-  
+
   console.log(`Validating EPUB at: ${args[0]}`);
   const result = validateEpub(args[0]);
   if (result.success) {
