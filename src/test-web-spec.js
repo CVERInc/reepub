@@ -351,8 +351,41 @@ async function main() {
     assert(html.includes('layout-horizontal'), 'horizontal layout selects the horizontal cover');
     const v = cover.buildCoverHtml('書名', '作者', 'vertical');
     assert(v.includes('layout-vertical'), 'vertical layout selects the vertical cover');
+
+    // The imprint is one imprint. A cover whose typeface is chosen by the
+    // script its title happens to be written in gives the same series two
+    // different looks; reepub sets English, Japanese and Traditional Chinese
+    // in one voice and lets the platform supply each script's own letterforms.
+    const faces = [
+      cover.buildCoverHtml('The Book of Elon', 'Eric Jorgenson', 'horizontal'),
+      cover.buildCoverHtml('鹿鼎記', '金庸', 'horizontal'),
+      cover.buildCoverHtml('新刊が売り子のせいです', '道満晴明', 'horizontal'),
+    ].map(html => (html.match(/--imprint:\s*([^;]+);/) || [, ''])[1].trim());
+    assert(faces.every(f => f && f === faces[0]),
+      `the typeface is the same for en, ja and zh-TW titles (got ${JSON.stringify(faces)})`);
+    assert(faces[0] === 'serif',
+      `the imprint face is the generic serif, which resolves per script (got ${JSON.stringify(faces[0])})`);
+    assert(!/PingFang|Inter|Helvetica|Songti|Hiragino/.test(v),
+      'no named family is hardcoded, so a machine missing one cannot change the look');
   } else if (cover) {
     assert(false, 'buildCoverHtml is exported from src/cover-generator.js');
+  }
+
+  section('Cover generator: the layout follows the reading direction');
+  if (cover && cover.layoutForDirection) {
+    // Which cover a book gets is a property of how it is read, not of what a
+    // caller guesses about its language. One rule, in one place.
+    assert(cover.layoutForDirection('rtl') === 'vertical',
+      'a right-to-left book gets the vertical cover');
+    assert(cover.layoutForDirection('RTL') === 'vertical',
+      'the direction is matched case-insensitively');
+    assert(cover.layoutForDirection('ltr') === 'horizontal',
+      'a left-to-right book gets the horizontal cover');
+    assert(cover.layoutForDirection('') === 'horizontal'
+      && cover.layoutForDirection(undefined) === 'horizontal',
+      'a book that declares no direction gets the horizontal cover');
+  } else if (cover) {
+    assert(false, 'layoutForDirection is exported from src/cover-generator.js');
   }
   if (cover) {
     assert(typeof cover.generateCover === 'function', 'generateCover remains exported');

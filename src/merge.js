@@ -803,7 +803,7 @@ async function main() {
       console.log('  generating cover…');
       coverImagePath = path.join(scratch, COVER_IMAGE);
       await generateCover(title, author, coverImagePath,
-        first.pageDirection === 'rtl' ? 'vertical' : 'horizontal');
+        { pageDirection: first.pageDirection });
     }
 
     writeEpub(outputPath, path.join(scratch, 'book'), {
