@@ -18,7 +18,7 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
           height: 2260px;
           background: linear-gradient(135deg, #1c2331 0%, #11151c 100%);
           color: #e0e0e0;
-          font-family: "Inter", "PingFang SC", "Helvetica Neue", sans-serif;
+          font-family: "Inter", "PingFang TC", "Helvetica Neue", sans-serif;
           display: flex;
           flex-direction: column;
           justify-content: center;
