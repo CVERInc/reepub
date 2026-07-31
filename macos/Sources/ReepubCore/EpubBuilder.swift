@@ -1,6 +1,10 @@
 // sync-marker: v1
 // Kept behaviorally in sync with src/builder.js / src/epub-text.js (joinText /
-// processPage / structureChapters / XML escaping). See scripts/check-sync-markers.mjs.
+// processPage / structureChapters / XML escaping). scripts/check-sync-markers.mjs
+// re-derives the shared heuristics — break punctuation, the heading length metric,
+// the paragraph-geometry thresholds and the escape table — from both sources on
+// every CI run, so a divergence fails the build instead of shipping two different
+// books from one PDF.
 import Foundation
 import AppKit
 import CoreGraphics
@@ -77,6 +81,9 @@ public enum EpubBuilder {
         return result
     }
 
+    /// Must stay character-for-character identical to the class in src/epub-text.js.
+    /// 「 and “ are *opening* quotes: a line that ends in one is handing the next
+    /// line over to a speaker, so it genuinely starts a new paragraph.
     private static let breakPunct: Set<Character> = ["。", "！", "？", "?", "」", "「", "”", "“", ".", "!"]
 
     private static func endsWithBreakPunct(_ s: String) -> Bool {
@@ -121,6 +128,8 @@ public enum EpubBuilder {
 
         return paragraphs.map { pLines -> Paragraph in
             let text = joinText(pLines)
+            // String.count is extended grapheme clusters; src/epub-text.js mirrors it
+            // with Intl.Segmenter, never String#length (UTF-16 code units).
             let isHeading = pLines.count == 1 && pLines[0].height > avgHeight * 1.35 && text.count < 40
             return Paragraph(text: text, isHeading: isHeading)
         }
@@ -420,6 +429,15 @@ public enum EpubBuilder {
         """
     }
 
+    /// The `oeb-page-*-margin` resets are not CSS3 — they are the OEB properties
+    /// Kindle's converter honours, and without them a full-bleed plate is inset by
+    /// the device's default page margins. Other readers ignore the unknown
+    /// properties, so they cost nothing. Keep them identical to src/builder.js.
+    private static let fullBleedBodyStyle =
+        "margin: 0; padding: 0; text-align: center; background-color: #ffffff; "
+        + "oeb-page-head-margin: 0 !important; oeb-page-foot-margin: 0 !important; "
+        + "oeb-page-left-margin: 0 !important; oeb-page-right-margin: 0 !important;"
+
     private static func imageChapterXHTML(title: String, imageRelPath: String) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
@@ -429,7 +447,7 @@ public enum EpubBuilder {
           <meta charset="UTF-8" />
           <title>\(escapeXML(title))</title>
         </head>
-        <body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff;">
+        <body style="\(fullBleedBodyStyle)">
           <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
             <img class="cover-image" src="../\(imageRelPath)" alt="\(escapeAttr(title))" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
           </div>
@@ -447,7 +465,7 @@ public enum EpubBuilder {
           <meta charset="UTF-8" />
           <title>Cover</title>
         </head>
-        <body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff;">
+        <body style="\(fullBleedBodyStyle)">
           <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
             <img class="cover-image" src="images/cover.jpeg" alt="\(escapeAttr(title))" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
           </div>

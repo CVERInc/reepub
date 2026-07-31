@@ -1,11 +1,29 @@
 const { chromium } = require('playwright');
-const fs = require('fs');
-const path = require('path');
+const { escapeXML } = require('./epub-text');
 
-async function generateCover(title, author, outputPath, layout = 'vertical') {
-  // Split title if it's too long, though vertical text handles it well.
-  // Use a classic, elegant vertical layout for Chinese books.
-  const html = `
+// The layouts the stylesheet below actually defines. Kept as an allowlist
+// because `layout` lands in a class attribute: a value from outside this set is
+// markup injection, not a styling mistake.
+const LAYOUTS = ['vertical', 'horizontal'];
+
+// document.fonts.ready can never settle if a face fails to load, so the wait is
+// raced against this ceiling — a missing font must degrade the cover, not hang
+// the build.
+const FONT_READY_TIMEOUT_MS = 3000;
+
+// Pure (no I/O), so the escaping contract is testable without a browser.
+// title/author are untrusted text and are escaped as HTML element content: raw
+// interpolation let a title like 'A <Book>' inject markup into the rendered
+// cover. An unrecognised layout is rejected rather than silently defaulted.
+function buildCoverHtml(title, author, layout = 'vertical') {
+  if (!LAYOUTS.includes(layout)) {
+    throw new TypeError(
+      `Unknown cover layout ${JSON.stringify(layout)} (expected one of: ${LAYOUTS.join(', ')})`);
+  }
+  const safeTitle = escapeXML(title == null ? '' : title);
+  const safeAuthor = escapeXML(author == null ? '' : author);
+
+  return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -78,7 +96,7 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
           writing-mode: vertical-rl;
           text-orientation: upright;
         }
-        
+
         /* HORIZONTAL LAYOUT */
         .layout-horizontal .border, .layout-horizontal .border-inner {
           display: none; /* Modern, borderless look */
@@ -121,27 +139,41 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
     <body class="layout-${layout}">
       <div class="border"></div>
       <div class="border-inner"></div>
-      <div class="title">${title}</div>
+      <div class="title">${safeTitle}</div>
       <div class="author-container">
-        <div class="author">${author}</div>
+        <div class="author">${safeAuthor}</div>
       </div>
       <div class="publisher">REEPUB EDITIONS</div>
     </body>
     </html>
   `;
-
-  const browser = await chromium.launch();
-  const page = await browser.newPage({
-    viewport: { width: 1600, height: 2260 },
-    deviceScaleFactor: 1
-  });
-  
-  await page.setContent(html);
-  // Wait a little bit for system fonts to render properly
-  await page.waitForTimeout(500);
-  
-  await page.screenshot({ path: outputPath, type: 'jpeg', quality: 85 });
-  await browser.close();
 }
 
-module.exports = { generateCover };
+// Renders the cover to `outputPath` as JPEG. The browser is closed on every
+// path: a leaked chromium keeps the caller's event loop alive forever, so a
+// screenshot failure used to hang the whole process instead of rejecting.
+async function generateCover(title, author, outputPath, layout = 'vertical') {
+  const html = buildCoverHtml(title, author, layout);
+
+  const browser = await chromium.launch();
+  try {
+    const page = await browser.newPage({
+      viewport: { width: 1600, height: 2260 },
+      deviceScaleFactor: 1
+    });
+
+    await page.setContent(html);
+    await page.evaluate(async (timeoutMs) => {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise(resolve => setTimeout(resolve, timeoutMs))
+      ]);
+    }, FONT_READY_TIMEOUT_MS);
+
+    await page.screenshot({ path: outputPath, type: 'jpeg', quality: 85 });
+  } finally {
+    await browser.close();
+  }
+}
+
+module.exports = { buildCoverHtml, generateCover };
