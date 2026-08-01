@@ -254,8 +254,11 @@ async function main() {
     // The count is what the reader is told was redrawn. An emoji in an
     // attribute is renamed, not redrawn, so it does not inflate the number.
     assert(count === 2, `the count is the pictographs redrawn in text (got ${count})`);
-    assert(/<img class="reepub-emoji" src="images\/emoji-1f9e0\.png" alt="腦" style="height: 1em; vertical-align: -0\.125em;"\/>/.test(out),
-      'a pictograph becomes an image at text height, named in the book\'s language');
+    // text-bottom was chosen on the device over middle and a negative offset:
+    // a CJK character fills its em box, so a glyph flush with the box's
+    // bottom stands shoulder to shoulder with the characters around it.
+    assert(/<img class="reepub-emoji" src="images\/emoji-1f9e0\.png" alt="腦" style="height: 1em; vertical-align: text-bottom;"\/>/.test(out),
+      'a pictograph becomes an image at text height, flush with the em box, named in the book\'s language');
     assert(!/[\u{1F000}-\u{1FAFF}]/u.test(out),
       'no pictograph codepoint survives — the codepoint is what kills the cover');
     assert(out.includes('𡒉 與 → 不動'),

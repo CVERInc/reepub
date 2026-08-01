@@ -18,7 +18,10 @@ CI that keeps them that way. See [PRINCIPLES.md](PRINCIPLES.md).
   place as monochrome line art: Noto Emoji's monochrome face, one engraving
   per distinct character (content-addressed, so 77 emoji cost 18 small
   images), set into the text at 1em so it scales with the reader's chosen
-  type size. The alt text is the character's CLDR name in the book's
+  type size, flush with the em box (vertical-align: text-bottom, judged on
+  the device against middle and a negative offset — a CJK character fills
+  its em box, so the glyph stands shoulder to shoulder with the characters
+  around it). The alt text is the character's CLDR name in the book's
   language — 火箭 to a screen reader and to search, an image to the eye.
   The pictograph codepoint itself — the thing that kills the cover — never
   reaches the book. Assets are pinned and checksum-verified

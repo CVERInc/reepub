@@ -156,8 +156,14 @@ async function renderGlyphs(chars, { size = 128 } = {}) {
  * The style is inline rather than a stylesheet rule so the glyph survives
  * any healing or merging that rewrites stylesheets: 1em tall, it scales with
  * the reader's chosen type size like the character it stands for.
+ *
+ * text-bottom, judged on the device against middle and a -0.125em offset:
+ * a CJK character fills its em box, so a glyph flush with the box's bottom
+ * stands shoulder to shoulder with the characters around it. It is also the
+ * only one of the three that asks nothing of the renderer — no negative
+ * length, no guess at an x-height Kindle may compute differently.
  */
-const GLYPH_STYLE = 'height: 1em; vertical-align: -0.125em;';
+const GLYPH_STYLE = 'height: 1em; vertical-align: text-bottom;';
 
 function glyphMarkup(char, hrefFor, altFor) {
   return `<img class="reepub-emoji" src="${escapeAttr(hrefFor(char))}"`
