@@ -90,21 +90,29 @@ function parseArgs(args) {
 const LEGACY_DOCTYPE = /<!DOCTYPE\s+html\s+PUBLIC/i;
 
 /**
- * A cover page is furniture, not content: one <img> and nothing to read. The
- * repaired book writes a fresh one, so the original is taken out of the reading
- * order first — otherwise the book opens on two covers in a row.
+ * A cover page is furniture, not content. The repaired book writes a fresh one,
+ * so the original is taken out of the reading order first — otherwise the book
+ * opens on two covers in a row.
  *
- * Only a document that shows the declared cover image and carries no text
- * qualifies. A first chapter that merely happens to open with a picture stays
- * exactly where it is.
+ * Two shapes count: a page that declares epub:type="cover", which is what
+ * reepub writes and what the format provides for; and the older convention of
+ * a page holding the declared cover image and nothing to read. A first chapter
+ * that merely happens to open with a picture stays exactly where it is.
  */
 function isCoverPage(book, chapter) {
-  if (!book.coverImagePath) return false;
   const abs = path.join(book.root, chapter.path);
   if (!fs.existsSync(abs)) return false;
 
   const source = fs.readFileSync(abs, 'utf8');
   const $ = cheerio.load(source, { xmlMode: true, decodeEntities: false });
+
+  // EPUB 3 has a word for this. A cover page reepub wrote says so itself, and
+  // that has to be checked first: the typographic cover is all text and no
+  // image, which is the exact opposite of what the older shape below looks
+  // for, so healing a healed book would file its own cover as chapter one.
+  if ($('[epub\\:type~="cover"]').length > 0) return true;
+
+  if (!book.coverImagePath) return false;
   if ($('body').text().replace(/\s+/g, '') !== '') return false;
 
   const coverName = path.posix.basename(book.coverImagePath);
@@ -194,13 +202,14 @@ async function main() {
     const coverPage = coverImagePath && book.chapters.find(ch => isCoverPage(book, ch));
     if (coverPage) book.chapters = book.chapters.filter(ch => ch !== coverPage);
 
+    let coverFit = {};
     const coverTitle = options.title || book.title || path.basename(inputPath, '.epub');
     const coverAuthor = options.author || book.creator;
     if (options.cover) {
       const layout = layoutForDirection(book.pageDirection);
       console.log(`  drawing a new ${layout} cover…`);
       coverImagePath = path.join(scratch, COVER_IMAGE);
-      await generateCover(coverTitle, coverAuthor, coverImagePath,
+      coverFit = await generateCover(coverTitle, coverAuthor, coverImagePath,
         { pageDirection: book.pageDirection, translator: options.translator });
     }
 
@@ -279,6 +288,8 @@ async function main() {
       chapters,
       pool,
       coverImagePath,
+      titleScale: coverFit.titleScale,
+      singleLine: coverFit.singleLine,
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);

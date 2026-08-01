@@ -31,7 +31,7 @@ const { execFileSync } = require('child_process');
 const { newUuid, buildOpf, buildNcx, buildNavDocument, HREFS } = require('./binder');
 const { escapeAttr } = require('./epub-text');
 const { validateEpub } = require('./validator');
-const { generateCover } = require('./cover-generator');
+const { generateCover, buildCoverPage, layoutForDirection } = require('./cover-generator');
 
 // EPUB 3, because it is the only version whose spine can carry
 // page-progression-direction: epubcheck rejects that attribute on an EPUB 2
@@ -640,23 +640,6 @@ const CONTAINER_XML = `<?xml version="1.0" encoding="UTF-8"?>
   </rootfiles>
 </container>`;
 
-// The margin reset is inline because a reader that ignores the stylesheet still
-// has to show the cover edge to edge; it is the same template builder.js uses.
-function buildCoverXhtml(title, language) {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="${escapeAttr(language)}" lang="${escapeAttr(language)}">
-<head>
-  <meta charset="UTF-8" />
-  <title>Cover</title>
-</head>
-<body style="margin: 0; padding: 0; text-align: center; background-color: #ffffff; oeb-page-head-margin: 0 !important; oeb-page-foot-margin: 0 !important; oeb-page-left-margin: 0 !important; oeb-page-right-margin: 0 !important;">
-  <div class="cover-container" style="text-align: center; page-break-after: always; break-after: page; width: 100%; margin: 0; padding: 0;">
-    <img class="cover-image" src="${HREFS.imagesDir}${COVER_IMAGE}" alt="${escapeAttr(title)}" style="width: 100%; height: auto; display: block; margin: 0 auto;" />
-  </div>
-</body>
-</html>`;
-}
 
 /**
  * Lay the merged book out in bookDir and zip it to outputPath.
@@ -701,7 +684,19 @@ function writeEpub(outputPath, bookDir, book) {
   book.pool.writeTo(oebps);
 
   if (coverImage) {
-    fs.writeFileSync(path.join(oebps, HREFS.coverPage), buildCoverXhtml(book.title, book.language));
+    // The cover page is real type, not a picture of type: it stays sharp at
+    // any size, can be selected, and costs a few hundred bytes. The raster
+    // beside it exists because a shelf needs a thumbnail — both come from the
+    // same design and the same fitted measurements, so they cannot disagree.
+    fs.writeFileSync(path.join(oebps, HREFS.coverPage), buildCoverPage({
+      title: book.title,
+      author: book.author,
+      translator: book.translator,
+      language: book.language,
+      layout: layoutForDirection(book.pageDirection),
+      titleScale: book.titleScale,
+      singleLine: book.singleLine,
+    }));
     fs.mkdirSync(path.join(oebps, HREFS.imagesDir), { recursive: true });
     fs.copyFileSync(book.coverImagePath, path.join(oebps, HREFS.imagesDir, COVER_IMAGE));
   }
@@ -805,15 +800,17 @@ async function main() {
     }
 
     let coverImagePath = null;
+    let coverFit = {};
     if (options.cover) {
       console.log('  generating cover…');
       coverImagePath = path.join(scratch, COVER_IMAGE);
-      await generateCover(title, author, coverImagePath,
+      coverFit = await generateCover(title, author, coverImagePath,
         { pageDirection: first.pageDirection });
     }
 
     writeEpub(outputPath, path.join(scratch, 'book'), {
       title, author, language, pageDirection: first.pageDirection, chapters, pool, coverImagePath,
+      titleScale: coverFit.titleScale, singleLine: coverFit.singleLine,
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);

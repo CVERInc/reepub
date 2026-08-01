@@ -360,7 +360,7 @@ async function main() {
       cover.buildCoverHtml('The Book of Elon', 'Eric Jorgenson', 'horizontal'),
       cover.buildCoverHtml('鹿鼎記', '金庸', 'horizontal'),
       cover.buildCoverHtml('新刊が売り子のせいです', '道満晴明', 'horizontal'),
-    ].map(html => (html.match(/--imprint:\s*([^;]+);/) || [, ''])[1].trim());
+    ].map(html => (html.match(/font-family:\s*([^;]+);/) || [, ''])[1].trim());
     assert(faces.every(f => f && f === faces[0]),
       `the typeface is the same for en, ja and zh-TW titles (got ${JSON.stringify(faces)})`);
     assert(faces[0] === 'serif',
@@ -368,21 +368,71 @@ async function main() {
     assert(!/PingFang|Inter|Helvetica|Songti|Hiragino/.test(v),
       'no named family is hardcoded, so a machine missing one cannot change the look');
 
+    // The shelf renders the cover in greyscale at thumbnail size and draws its
+    // own furniture over the corners. A gradient collapses, a faint grey is
+    // simply absent, and a hairline is gone — so the ground is solid black and
+    // the ink is solid white, with nothing else to lose.
+    assert(/background:\s*#000\b/.test(v) && /color:\s*#fff\b/.test(v),
+      'the cover is solid black and solid white, which is all that survives greyscale e-ink');
+    assert(!/gradient|opacity:\s*0\.|rgba\(/.test(v),
+      'no gradient, no partial opacity and no translucent ink — none of it reaches the device');
+
     // 原作者為主、譯者為輔, on the cover as well as in the metadata.
     const credited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '某某 <譯>');
     assert(/class="translator"[^>]*>某某 &lt;譯&gt;</.test(credited),
       'a translator is credited on the cover, escaped like every other untrusted field');
     const sizeOf = (html, cls) => {
-      const rule = html.match(new RegExp(`\\.layout-vertical \\.${cls}\\s*\\{[^}]*\\}`));
-      return rule ? Number((rule[0].match(/font-size:\s*(\d+)px/) || [, 0])[1]) : 0;
+      const rule = html.match(new RegExp(`\\.reepub-cover \\.${cls}\\s*\\{[^}]*\\}`));
+      return rule ? Number((rule[0].match(/font-size:\s*([\d.]+)em/) || [, 0])[1]) : 0;
     };
-    assert(sizeOf(credited, 'translator') > 0 && sizeOf(credited, 'translator') < sizeOf(credited, 'author'),
-      `the translator is set smaller than the author (${sizeOf(credited, 'translator')}px vs ${sizeOf(credited, 'author')}px)`);
+    assert(sizeOf(credited, 'translator') > 0 && sizeOf(credited, 'author') > 0
+      && sizeOf(credited, 'translator') < sizeOf(credited, 'author'),
+      `the translator is set smaller than the author (${sizeOf(credited, 'translator')}em vs ${sizeOf(credited, 'author')}em)`);
     const uncredited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical');
-    assert(/class="translator"><\/div>/.test(uncredited) && /\.translator:empty\s*\{[^}]*display:\s*none/.test(uncredited),
+    assert(/class="translator"><\/p>/.test(uncredited) && /\.translator:empty\s*\{[^}]*display:\s*none/.test(uncredited),
       'a book with no translator leaves no stray line on the cover');
   } else if (cover) {
     assert(false, 'buildCoverHtml is exported from src/cover-generator.js');
+  }
+
+  section('Cover generator: type is fitted, not fixed');
+  if (cover && cover.buildCoverPage) {
+    // The cover is HTML, so its type should behave like type: one size chosen
+    // for the title it actually has. A constant makes a two-character title
+    // small and a fifteen-character one overflow.
+    const big = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '', 30);
+    const small = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '', 8);
+    const sizeIn = html => Number((html.match(/\.title\s*\{[^}]*font-size:\s*([\d.]+)em/) || [, 0])[1]);
+    assert(sizeIn(big) === 30 && sizeIn(small) === 8,
+      `the fitted scale reaches the stylesheet (got ${sizeIn(big)}em and ${sizeIn(small)}em)`);
+    assert(/font-size:\s*calc\(min\(100vw/.test(big),
+      'one em is a fraction of the canvas, so the same numbers describe a 1600px raster and a reader\'s page');
+
+    // Wrapping splits a name across lines and no tool without a dictionary
+    // knows where a name ends, so it has to earn its keep.
+    assert(/text-wrap:\s*nowrap/.test(cover.buildCoverHtml('賈伯斯傳', '華特', 'horizontal', '', 19, true)),
+      'a title kept on one line says so in the stylesheet');
+    assert(/text-wrap:\s*balance/.test(cover.buildCoverHtml('The Book of Elon', 'Eric', 'horizontal', '', 22, false)),
+      'a wrapping title asks for balanced lines rather than a stray last word');
+    assert(/line-break:\s*strict/.test(big),
+      'CJK closing punctuation is kept off the start of a line');
+
+    // The page bound into the book is the same design as the raster beside it.
+    const page = cover.buildCoverPage({
+      title: '鹿鼎記', author: '金庸', layout: 'vertical', language: 'zh-TW', titleScale: 30,
+    });
+    assert(/^<\?xml/.test(page) && /xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/.test(page),
+      'the cover page is an XHTML document the container can carry');
+    assert(isWellFormed(page), 'the cover page is well-formed XML');
+    assert(!/<img[\s>]/.test(page),
+      'the cover page is type, not a picture of type — it stays sharp at any size');
+    assert(sizeIn(page) === 30,
+      'the page and the raster are set from the same fitted measurement');
+    assert(/xml:lang="zh-TW"/.test(page), 'the cover page declares the book\'s language');
+    const hostilePage = cover.buildCoverPage({ title: 'A <B> & "C"', author: 'X & Y', layout: 'horizontal' });
+    assert(isWellFormed(hostilePage), 'a hostile title cannot break the cover page');
+  } else if (cover) {
+    assert(false, 'buildCoverPage is exported from src/cover-generator.js');
   }
 
   section('Cover generator: the layout follows the reading direction');

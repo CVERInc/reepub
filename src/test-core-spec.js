@@ -417,6 +417,58 @@ p { background: url(images/tile.png); }`;
     assert(mangled,
       'an unknown named entity fails loudly instead of being silently mangled (HTML parsing would turn &notarealentity; into ¬arealentity;)');
 
+    // ------------------------------------------ the cover, as the shelf shows it
+    // A cover approved at 1600px on a backlit display is not the cover anyone
+    // sees. The shelf renders it greyscale at about 230px, which is where a
+    // deep navy became flat grey, a 0.3-alpha imprint line vanished and the
+    // author ended up under the selection tick. Judged here instead.
+    section('Cover: survives the shelf');
+
+    const { generateCover } = require('./cover-generator');
+    const sharpLib = require('sharp');
+    const shelfCover = path.join(work, 'shelf-cover.jpeg');
+    const shelfFit = await generateCover('鹿鼎記', '金庸', shelfCover, { pageDirection: 'rtl' });
+
+    const tile = await sharpLib(shelfCover).greyscale().resize({ width: 230 }).toBuffer();
+    const tone = (await sharpLib(tile).stats()).channels[0];
+    assert((tone.max - tone.min) / 255 > 0.9,
+      `the thumbnail keeps near-full ink contrast in greyscale (${Math.round((tone.max - tone.min) / 255 * 100)}%)`);
+
+    // The title has to be a shape you can recognise across a grid, not a
+    // caption. Measured as the share of the tile the ink actually covers.
+    const { data, info } = await sharpLib(tile).raw().toBuffer({ resolveWithObject: true });
+    let lit = 0;
+    for (let i = 0; i < data.length; i += info.channels) if (data[i] > 128) lit++;
+    const inkShare = lit / (info.width * info.height);
+    assert(inkShare > 0.03,
+      `the title still carries the tile at thumbnail size (${(inkShare * 100).toFixed(1)}% of it is ink)`);
+
+    assert(shelfFit.titleScale >= 8,
+      `type is fitted to the canvas rather than left at a caption size (${shelfFit.titleScale}% of canvas width)`);
+
+    // The shelf paints a progress badge, a selection tick and an overflow menu
+    // over three corners. Anything that has to be read stays out of them.
+    const corners = await Promise.all(
+      [[0, 0], [1, 0], [0, 1], [1, 1]].map(async ([cx, cy]) => {
+        const side = Math.round(info.width * 0.17);
+        const region = await sharpLib(tile)
+          .extract({
+            left: cx ? info.width - side : 0,
+            top: cy ? Math.round(info.height - side * 1.4) : 0,
+            width: side,
+            height: Math.round(side * 1.4),
+          })
+          .raw().toBuffer({ resolveWithObject: true });
+        let bright = 0;
+        for (let i = 0; i < region.data.length; i += region.info.channels) {
+          if (region.data[i] > 128) bright++;
+        }
+        return bright / (region.info.width * region.info.height);
+      }));
+    const [, topRight, bottomLeft, bottomRight] = corners;
+    assert(topRight < 0.02 && bottomLeft < 0.02 && bottomRight < 0.02,
+      `nothing is drawn where the shelf paints its own furniture (top-right ${(topRight * 100).toFixed(1)}%, bottom-left ${(bottomLeft * 100).toFixed(1)}%, bottom-right ${(bottomRight * 100).toFixed(1)}%)`);
+
     // ------------------------------------- recognising a contents page
     // Whether a page is a table of contents is not a matter of opinion: the
     // book's navigation already lists every chapter's label, so the question
