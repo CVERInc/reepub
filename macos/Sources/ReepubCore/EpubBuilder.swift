@@ -18,6 +18,33 @@ public struct EpubMetadata {
     }
 }
 
+/// Choices the person binding the book gets to make, with the safe answer as
+/// the default. Kept apart from EpubMetadata: the metadata describes the book,
+/// these describe the binding.
+public struct EpubOptions {
+    /// A Kindle silently refuses to show the cover or the table of contents of
+    /// a book whose text contains pictographic emoji — the whole book, not the
+    /// chapter carrying them — while the file validates clean. Found by
+    /// bisection over ~40 builds on the device; src/epub-text.js documents the
+    /// evidence. On by default because a book that hides its own cover is
+    /// broken in the way the reader actually meets; the switch exists because
+    /// it is the reader's book, and a reader who never sends it to a Kindle
+    /// loses nothing by keeping the emoji.
+    public var removePictographs: Bool
+    public init(removePictographs: Bool = true) {
+        self.removePictographs = removePictographs
+    }
+}
+
+/// What the build did beyond assembling — the app surfaces this, so a repair
+/// is named to the person whose book it is rather than done quietly.
+public struct BuildReport {
+    public var pictographsRemoved: Int
+    public init(pictographsRemoved: Int = 0) {
+        self.pictographsRemoved = pictographsRemoved
+    }
+}
+
 struct Paragraph {
     let text: String
     let isHeading: Bool
@@ -201,6 +228,70 @@ public enum EpubBuilder {
         escapeXML(s).replacingOccurrences(of: "\"", with: "&quot;")
     }
 
+    // MARK: Pictographs
+
+    /// Must stay numerically identical to PICTOGRAPH in src/epub-text.js. The
+    /// range stops short of U+20000 where CJK Extension B lives — a book must
+    /// never lose a character of its own language to this — and arrows,
+    /// bullets and ticks (all below U+1F000) stay, so a diagram of boxes and
+    /// arrows still reads as one.
+    static let pictographRange: ClosedRange<UInt32> = 0x1F000...0x1FAFF
+    static let variationSelector: UInt32 = 0xFE0F
+
+    private static func isPictograph(_ scalar: Unicode.Scalar) -> Bool {
+        pictographRange.contains(scalar.value)
+    }
+
+    static func countPictographs(_ text: String) -> Int {
+        text.unicodeScalars.reduce(0) { $0 + (isPictograph($1) ? 1 : 0) }
+    }
+
+    /// Mirror of stripPictographs in src/epub-text.js: "🧠 概念圖解" becomes
+    /// "概念圖解", not " 概念圖解" — an icon at the head of a label takes its
+    /// separating space with it; one that sat between words keeps a single
+    /// space, so the words on either side do not run together.
+    static func stripPictographs(_ text: String) -> String {
+        var out = String.UnicodeScalarView()
+        var pendingSpace: [Unicode.Scalar] = []  // whitespace not yet attributed to a run
+        var inRun = false
+        var spaceBeforeRun = false
+
+        // Leaving a run: the run and its surrounding whitespace collapse to one
+        // space iff there was whitespace on both sides, exactly as the JS
+        // replacement of /\s*(pictograph)+\s*/ does.
+        func endRun() {
+            guard inRun else { return }
+            if spaceBeforeRun && !pendingSpace.isEmpty { out.append(" ") }
+            pendingSpace.removeAll()
+            inRun = false
+            spaceBeforeRun = false
+        }
+
+        for scalar in text.unicodeScalars {
+            if isPictograph(scalar) || (inRun && scalar.value == variationSelector) {
+                if inRun {
+                    pendingSpace.removeAll()  // whitespace between pictographs is interior: swallowed
+                } else {
+                    inRun = true
+                    spaceBeforeRun = !pendingSpace.isEmpty
+                    pendingSpace.removeAll()
+                }
+                continue
+            }
+            if scalar.properties.isWhitespace {
+                pendingSpace.append(scalar)
+                continue
+            }
+            endRun()
+            out.append(contentsOf: pendingSpace)
+            pendingSpace.removeAll()
+            out.append(scalar)
+        }
+        endRun()
+        out.append(contentsOf: pendingSpace)
+        return String(out)
+    }
+
     private static func jpegData(from cgImage: CGImage, compression: CGFloat = 0.8) -> Data? {
         let rep = NSBitmapImageRep(cgImage: cgImage)
         return rep.representation(using: .jpeg, properties: [.compressionFactor: compression])
@@ -210,8 +301,11 @@ public enum EpubBuilder {
 
     /// Build a validated EPUB3 from OCR'd pages and write it to `outputURL`.
     /// `progress` reports the current stage (called on a background queue).
+    /// The returned report names anything the build changed beyond assembling.
+    @discardableResult
     public static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL,
-                      progress: ((BuildStage) -> Void)? = nil) throws {
+                      options: EpubOptions = EpubOptions(),
+                      progress: ((BuildStage) -> Void)? = nil) throws -> BuildReport {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("reepub-build-\(UUID().uuidString)")
         let oebps = tempDir.appendingPathComponent("OEBPS")
@@ -242,7 +336,34 @@ public enum EpubBuilder {
                 hasCover = true
             }
 
-            let chapters = structureChapters(pages)
+            var chapters = structureChapters(pages)
+            var report = BuildReport()
+
+            // The reader's choice, made after the chapters are structured so
+            // the geometry heuristics never see a text that differs from what
+            // the OCR produced.
+            if options.removePictographs {
+                chapters = chapters.map { chapter in
+                    switch chapter {
+                    case let .text(title, paragraphs):
+                        report.pictographsRemoved += countPictographs(title)
+                            + paragraphs.reduce(0) { $0 + countPictographs($1.text) }
+                        return .text(title: stripPictographs(title),
+                                     paragraphs: paragraphs.map {
+                                         Paragraph(text: stripPictographs($0.text), isHeading: $0.isHeading)
+                                     })
+                    case let .image(title, imageRelPath, pageIndex):
+                        report.pictographsRemoved += countPictographs(title)
+                        return .image(title: stripPictographs(title),
+                                      imageRelPath: imageRelPath, pageIndex: pageIndex)
+                    }
+                }
+            }
+
+            // One identifier for the whole book. The OPF and the NCX used to
+            // mint their own timestamps — two documents disagreeing about which
+            // book they describe, and neither a valid UUID.
+            let bookUUID = UUID().uuidString.lowercased()
 
             // Image-page plates
             for chapter in chapters {
@@ -292,6 +413,14 @@ public enum EpubBuilder {
                 .write(to: oebps.appendingPathComponent("index.xhtml"),
                        atomically: true, encoding: .utf8)
 
+            // nav.xhtml — the navigation document EPUB 3 requires. Manifested
+            // with properties="nav" but kept out of the spine, matching the
+            // Node binder: the book's own index page is what a reader pages
+            // through; this one is for the machine.
+            try navXHTML(title: metadata.title, chapters: manifestChapters.map { ($0.title, $0.href) })
+                .write(to: oebps.appendingPathComponent("nav.xhtml"),
+                       atomically: true, encoding: .utf8)
+
             // content.opf
             let imageItems: [(String, String)] = chapters.enumerated().compactMap { idx, ch in
                 if case let .image(_, imageRelPath, _) = ch {
@@ -299,14 +428,15 @@ public enum EpubBuilder {
                 }
                 return nil
             }
-            try contentOPF(metadata: metadata, hasCover: hasCover,
+            try contentOPF(metadata: metadata, uuid: bookUUID, hasCover: hasCover,
                            imageItems: imageItems,
                            chapters: manifestChapters.map { ($0.id, $0.href) })
                 .write(to: oebps.appendingPathComponent("content.opf"),
                        atomically: true, encoding: .utf8)
 
             // toc.ncx
-            try tocNCX(title: metadata.title, chapters: manifestChapters.map { ($0.id, $0.title, $0.href) })
+            try tocNCX(title: metadata.title, uuid: bookUUID,
+                       chapters: manifestChapters.map { ($0.id, $0.title, $0.href) })
                 .write(to: oebps.appendingPathComponent("toc.ncx"),
                        atomically: true, encoding: .utf8)
 
@@ -321,6 +451,7 @@ public enum EpubBuilder {
             }
             try runZip(["-0Xq", outputURL.path, "mimetype"], cwd: tempDir)
             try runZip(["-ur9q", outputURL.path, "META-INF", "OEBPS"], cwd: tempDir)
+            return report
         } catch let e as EpubError {
             throw e
         } catch {
@@ -497,20 +628,20 @@ public enum EpubBuilder {
         """
     }
 
-    private static func contentOPF(metadata: EpubMetadata, hasCover: Bool,
+    private static func contentOPF(metadata: EpubMetadata, uuid: String, hasCover: Bool,
                                    imageItems: [(String, String)],
                                    chapters: [(String, String)]) -> String {
         let creator = metadata.author.isEmpty ? "" :
             "\n    <dc:creator>\(escapeXML(metadata.author))</dc:creator>"
         let coverMeta = hasCover ? "\n    <meta name=\"cover\" content=\"cover-image\"/>" : ""
-        let timestamp = String(Int(Date().timeIntervalSince1970 * 1000))
 
         var manifest = [
             "    <item id=\"style\" href=\"style.css\" media-type=\"text/css\"/>",
             "    <item id=\"index\" href=\"index.xhtml\" media-type=\"application/xhtml+xml\"/>",
+            "    <item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>",
         ]
         if hasCover {
-            manifest.append("    <item id=\"cover-image\" href=\"images/cover.jpeg\" media-type=\"image/jpeg\"/>")
+            manifest.append("    <item id=\"cover-image\" href=\"images/cover.jpeg\" media-type=\"image/jpeg\" properties=\"cover-image\"/>")
             manifest.append("    <item id=\"cover-xhtml\" href=\"cover.xhtml\" media-type=\"application/xhtml+xml\"/>")
         }
         for (id, href) in imageItems {
@@ -532,7 +663,7 @@ public enum EpubBuilder {
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
             <dc:title>\(escapeXML(metadata.title))</dc:title>\(creator)
             <dc:language>zh-Hant</dc:language>
-            <dc:identifier id="BookID">urn:uuid:ocr-book-\(timestamp)</dc:identifier>
+            <dc:identifier id="BookID">urn:uuid:\(uuid)</dc:identifier>
             <meta property="dcterms:modified">\(isoTimestamp())</meta>\(coverMeta)
           </metadata>
           <manifest>
@@ -545,7 +676,32 @@ public enum EpubBuilder {
         """
     }
 
-    private static func tocNCX(title: String, chapters: [(String, String, String)]) -> String {
+    /// The EPUB 3 navigation document. Same entries as the NCX and the visible
+    /// index page — three views of one truth, all built from one chapter list.
+    private static func navXHTML(title: String, chapters: [(String, String)]) -> String {
+        let items = chapters.map { "        <li><a href=\"\(escapeAttr($0.1))\">\(escapeXML($0.0))</a></li>" }
+            .joined(separator: "\n")
+        return """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE html>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-Hant" lang="zh-Hant">
+        <head>
+          <meta charset="UTF-8" />
+          <title>\(escapeXML(title))</title>
+        </head>
+        <body>
+          <nav epub:type="toc">
+            <h1>目錄</h1>
+            <ol>
+        \(items)
+            </ol>
+          </nav>
+        </body>
+        </html>
+        """
+    }
+
+    private static func tocNCX(title: String, uuid: String, chapters: [(String, String, String)]) -> String {
         let navPoints = chapters.enumerated().map { idx, ch -> String in
             """
                 <navPoint id="navPoint-\(ch.0)" playOrder="\(idx + 2)">
@@ -554,13 +710,12 @@ public enum EpubBuilder {
                 </navPoint>
             """
         }.joined(separator: "\n")
-        let timestamp = String(Int(Date().timeIntervalSince1970 * 1000))
 
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
           <head>
-            <meta name="dtb:uid" content="urn:uuid:ocr-book-\(timestamp)"/>
+            <meta name="dtb:uid" content="urn:uuid:\(uuid)"/>
             <meta name="dtb:depth" content="1"/>
             <meta name="dtb:totalPageCount" content="0"/>
             <meta name="dtb:maxPageNumber" content="0"/>

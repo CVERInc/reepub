@@ -89,6 +89,11 @@ enum LocKey: String, CaseIterable {
     case stageValidatingXML
     case stagePackaging
 
+    // Binding options + repair report
+    case optionRemoveEmojiLabel   // toggle label
+    case optionRemoveEmojiDetail  // one-line why, under the label
+    case repairEmojiRemoved       // "Removed %d emoji …" — shown after a build that did
+
     // Errors surfaced from OCREngine / EpubBuilder
     case errorCannotOpenPDF     // "Cannot open PDF: %@"
     case errorZipFailed         // "EPUB packaging failed: %@"
@@ -173,6 +178,10 @@ final class Localizer: ObservableObject {
             .stageValidatingXML:     "Validating XML…",
             .stagePackaging:         "Packaging EPUB…",
 
+            .optionRemoveEmojiLabel:  "Remove emoji (Kindle compatibility)",
+            .optionRemoveEmojiDetail: "A Kindle hides the cover and contents of any book whose text contains emoji.",
+            .repairEmojiRemoved:      "Removed %d emoji so a Kindle will show the cover and contents.",
+
             .errorCannotOpenPDF:     "Cannot open PDF: %@",
             .errorZipFailed:         "EPUB packaging failed: %@",
             .errorValidation:        "EPUB validation failed: %@",
@@ -216,6 +225,10 @@ final class Localizer: ObservableObject {
             .stageValidatingXML:     "XML を検証中…",
             .stagePackaging:         "EPUB をパッケージ中…",
 
+            .optionRemoveEmojiLabel:  "絵文字を取り除く（Kindle 互換）",
+            .optionRemoveEmojiDetail: "本文に絵文字があると、Kindle はその本の表紙と目次を表示しません。",
+            .repairEmojiRemoved:      "絵文字を %d 個取り除きました。Kindle で表紙と目次が表示されます。",
+
             .errorCannotOpenPDF:     "PDF を開けません：%@",
             .errorZipFailed:         "EPUB のパッケージに失敗：%@",
             .errorValidation:        "EPUB の検証に失敗：%@",
@@ -258,6 +271,10 @@ final class Localizer: ObservableObject {
             .stageWritingChapters:   "寫入 %d 個章節…",
             .stageValidatingXML:     "驗證 XML…",
             .stagePackaging:         "打包 EPUB…",
+
+            .optionRemoveEmojiLabel:  "移除 emoji（Kindle 相容）",
+            .optionRemoveEmojiDetail: "書中只要有 emoji，Kindle 就不顯示整本書的封面與目次。",
+            .repairEmojiRemoved:      "已移除 %d 個 emoji，Kindle 才會顯示封面與目次。",
 
             .errorCannotOpenPDF:     "無法開啟 PDF：%@",
             .errorZipFailed:         "EPUB 打包失敗：%@",

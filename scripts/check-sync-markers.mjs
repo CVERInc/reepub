@@ -226,6 +226,38 @@ check('XML escape table agrees', () => {
   return render(js);
 });
 
+check('pictograph range agrees', () => {
+  // The range that decides which characters a Kindle-bound book may keep. It
+  // must stop short of U+20000 (CJK Extension B) on BOTH sides, or one builder
+  // strips a reader's own language while the other keeps emoji that cost the
+  // book its cover.
+  const js = must(jsSrc, JS,
+    /PICTOGRAPH = \/\[\\u\{([0-9A-Fa-f]+)\}-\\u\{([0-9A-Fa-f]+)\}\]\\u\{([0-9A-Fa-f]+)\}\?\/u/,
+    'the PICTOGRAPH regex (range plus variation selector)');
+  const swiftRange = must(swiftSrc, SWIFT,
+    /pictographRange:\s*ClosedRange<UInt32>\s*=\s*0x([0-9A-Fa-f]+)\.\.\.0x([0-9A-Fa-f]+)/,
+    'the pictographRange constant');
+  const swiftVS = must(swiftSrc, SWIFT,
+    /variationSelector:\s*UInt32\s*=\s*0x([0-9A-Fa-f]+)/,
+    'the variationSelector constant');
+
+  const norm = (hex) => parseInt(hex, 16);
+  const jsBounds = [norm(js[1]), norm(js[2]), norm(js[3])];
+  const swiftBounds = [norm(swiftRange[1]), norm(swiftRange[2]), norm(swiftVS[1])];
+  const show = (b) => `U+${b[0].toString(16).toUpperCase()}–U+${b[1].toString(16).toUpperCase()} (+U+${b[2].toString(16).toUpperCase()})`;
+
+  const problems = [];
+  if (jsBounds.join() !== swiftBounds.join()) {
+    problems.push(`${JS} strips ${show(jsBounds)}, ${SWIFT} strips ${show(swiftBounds)}`);
+  }
+  for (const [relPath, [, upper]] of [[JS, jsBounds], [SWIFT, swiftBounds]]) {
+    if (upper >= 0x20000) {
+      problems.push(`${relPath}: the range reaches U+${upper.toString(16).toUpperCase()}, into CJK Extension B — a book would lose characters of its own language`);
+    }
+  }
+  return problems.length ? problems : show(jsBounds);
+});
+
 if (failed > 0) {
   console.error(`\n${failed} divergence(s) between the Node and Swift EPUB builders. The same PDF would produce different books.`);
   process.exit(1);

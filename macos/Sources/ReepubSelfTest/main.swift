@@ -89,6 +89,83 @@ do {
     failures += 1
 }
 
+// --- Emoji / package-conformance regression tests ------------------------
+// The defect that cost ~40 device builds to find: a Kindle shows a book whose
+// text contains pictographic emoji with no cover and no table of contents at
+// all, while the file validates clean. Removal is the default and the reader
+// can switch it off; both directions are asserted here, along with the
+// package repairs (nav document, one valid UUID) the Node side already had.
+print("\nEmoji + package conformance tests:")
+
+func unzipRead(_ epub: URL, _ entry: String) -> String {
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+    proc.arguments = ["-p", epub.path, entry]
+    let out = Pipe()
+    proc.standardOutput = out
+    proc.standardError = Pipe()
+    try? proc.run()
+    proc.waitUntilExit()
+    return String(data: out.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+}
+
+do {
+    let emojiLine = OCRLine(
+        text: "🧠 概念圖解:很好 🚀 的想法,頂尖人才 → 卓越團隊,加上一段夠長的中文內文讓這一頁確定被判定為文字頁,於是章節、OPF、NCX 與導覽文件全部都會真的產生出來供我們檢查。",
+        x: 0.1, y: 0.5, width: 0.8, height: 0.03)
+    let page = OCRPage(pageIndex: 0, lines: [emojiLine], type: "text", image: nil)
+    let url = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("reepub-emoji-selftest.epub")
+
+    // Default: pictographs removed, and named in the report.
+    let report = try EpubBuilder.build(pages: [page],
+                                       metadata: EpubMetadata(title: "Emoji 測試", author: ""),
+                                       outputURL: url)
+    let chapter = unzipRead(url, "OEBPS/chapters/ch01.xhtml")
+    let strippedOK = report.pictographsRemoved == 2
+        && !chapter.unicodeScalars.contains { (0x1F000...0x1FAFF).contains($0.value) }
+    print("  \(strippedOK ? "✓" : "✗") default build removes pictographs and reports the count (removed \(report.pictographsRemoved))")
+    if !strippedOK { failures += 1 }
+
+    let arrowsOK = chapter.contains("→") && chapter.contains("概念圖解")
+    print("  \(arrowsOK ? "✓" : "✗") arrows and the decorated label's text survive")
+    if !arrowsOK { failures += 1 }
+
+    // The reader's switch: off means the book keeps its emoji, all of them.
+    let keepURL = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("reepub-emoji-keep-selftest.epub")
+    let keepReport = try EpubBuilder.build(pages: [page],
+                                           metadata: EpubMetadata(title: "Emoji 測試", author: ""),
+                                           outputURL: keepURL,
+                                           options: EpubOptions(removePictographs: false))
+    let kept = unzipRead(keepURL, "OEBPS/chapters/ch01.xhtml")
+    let keptOK = keepReport.pictographsRemoved == 0 && kept.contains("🧠") && kept.contains("🚀")
+    print("  \(keptOK ? "✓" : "✗") with the switch off the book keeps its emoji")
+    if !keptOK { failures += 1 }
+
+    // Package conformance: the nav document exists and is declared, and the
+    // OPF and NCX agree on one valid UUID (they used to mint their own).
+    let opf = unzipRead(url, "OEBPS/content.opf")
+    let nav = unzipRead(url, "OEBPS/nav.xhtml")
+    let navOK = opf.contains("properties=\"nav\"") && nav.contains("epub:type=\"toc\"")
+    print("  \(navOK ? "✓" : "✗") the EPUB 3 navigation document exists and is declared")
+    if !navOK { failures += 1 }
+
+    let uuidPattern = "urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+    let opfUUID = opf.range(of: uuidPattern, options: .regularExpression).map { String(opf[$0]) }
+    let ncx = unzipRead(url, "OEBPS/toc.ncx")
+    let ncxUUID = ncx.range(of: uuidPattern, options: .regularExpression).map { String(ncx[$0]) }
+    let uuidOK = opfUUID != nil && opfUUID == ncxUUID
+    print("  \(uuidOK ? "✓" : "✗") OPF and NCX carry one valid UUID (\(opfUUID ?? "none found"))")
+    if !uuidOK { failures += 1 }
+
+    try? FileManager.default.removeItem(at: url)
+    try? FileManager.default.removeItem(at: keepURL)
+} catch {
+    print("  ✗ emoji/package test build failed: \(error.localizedDescription)")
+    failures += 1
+}
+
 if failures == 0 {
     print("\n[SUCCESS] OCR + EPUB self-test passed.")
     exit(0)

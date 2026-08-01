@@ -11,6 +11,22 @@ it had already produced were invalid, and the validator that was supposed to
 catch that had passed them. This release makes the guarantees real and adds the
 CI that keeps them that way. See [PRINCIPLES.md](PRINCIPLES.md).
 
+### Added — the native app catches up with the CLI
+
+- The macOS app now offers the emoji decision to the reader: a toggle
+  ("Remove emoji — Kindle compatibility", localized en/ja/zh-TW, on by
+  default) and, after a build that removed any, a note saying how many —
+  the same repair the CLI names, never done quietly. The shared pictograph
+  range is now a machine-checked heuristic in `check-sync-markers.mjs`, so
+  the two builders cannot quietly disagree about which characters a book
+  may keep.
+- The app's EPUBs now pass the official epubcheck clean. Its builder still
+  had two defects the audit fixed on the Node side: it wrote EPUB 3
+  packages with no navigation document, and the OPF and NCX each minted
+  their own timestamp-based identifier — two documents disagreeing about
+  which book they describe, neither a valid UUID. One shared UUID and a
+  declared `properties="nav"` document now; the self-test asserts both.
+
 ### Fixed — a valid book that no Kindle would show
 
 - **Emoji in the text cost a book its cover and its entire table of contents.**

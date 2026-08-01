@@ -26,6 +26,17 @@ final class ReepubModel: ObservableObject {
     @Published var bookTitle = ""
     @Published var bookAuthor = ""
 
+    // The reader's choice, persisted. On by default: a book whose text carries
+    // pictographic emoji is shown by a Kindle with no cover and no table of
+    // contents at all, while validating clean — found by bisection on the
+    // device. The switch exists because it is the reader's book; someone who
+    // never sends it to a Kindle loses nothing by keeping the emoji.
+    static let removeEmojiKey = "removeEmoji"
+    @Published var removeEmoji: Bool {
+        didSet { UserDefaults.standard.set(removeEmoji, forKey: Self.removeEmojiKey) }
+    }
+    @Published var repairNote: String?
+
     private var pages: [OCRPage] = []
     private var sourceName = "book"
     private let loc: Localizer
@@ -41,9 +52,11 @@ final class ReepubModel: ObservableObject {
     }
     private var statusState: StatusState = .start
     private var ocrCounts: (pages: Int, text: Int, image: Int, chars: Int)?
+    private var lastPictographsRemoved = 0
 
     init(loc: Localizer) {
         self.loc = loc
+        self.removeEmoji = UserDefaults.standard.object(forKey: Self.removeEmojiKey) as? Bool ?? true
         self.status = loc(.statusStart)
     }
 
@@ -61,6 +74,8 @@ final class ReepubModel: ObservableObject {
         if let c = ocrCounts {
             summary = summaryText(name: sourceName, c: c)
         }
+        repairNote = lastPictographsRemoved > 0
+            ? String(format: loc(.repairEmojiRemoved), lastPictographsRemoved) : nil
     }
 
     private func summaryText(name: String,
@@ -158,20 +173,24 @@ final class ReepubModel: ObservableObject {
         let metadata = EpubMetadata(title: effectiveTitle,
                                     author: bookAuthor.trimmingCharacters(in: .whitespacesAndNewlines))
         let pagesCopy = pages
+        let options = EpubOptions(removePictographs: removeEmoji)
         isProcessing = true
         savedURL = nil
+        repairNote = nil
+        lastPictographsRemoved = 0
         statusState = .assembling
         status = loc(.statusAssembling)
 
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                try EpubBuilder.build(pages: pagesCopy, metadata: metadata, outputURL: url) { stage in
+                let report = try EpubBuilder.build(pages: pagesCopy, metadata: metadata,
+                                                   outputURL: url, options: options) { stage in
                     Task { @MainActor in
                         guard let self else { return }
                         self.progressText = self.stageText(stage)
                     }
                 }
-                await self?.saveFinished(url: url)
+                await self?.saveFinished(url: url, report: report)
             } catch {
                 await self?.fail(error)
             }
@@ -192,10 +211,13 @@ final class ReepubModel: ObservableObject {
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
-    private func saveFinished(url: URL) {
+    private func saveFinished(url: URL, report: BuildReport) {
         savedURL = url
         statusState = .saved(url.lastPathComponent)
         status = loc(.statusSavedPrefix) + url.lastPathComponent
+        lastPictographsRemoved = report.pictographsRemoved
+        repairNote = report.pictographsRemoved > 0
+            ? String(format: loc(.repairEmojiRemoved), report.pictographsRemoved) : nil
         progressText = ""
         isProcessing = false
     }
@@ -294,10 +316,31 @@ struct ContentView: View {
                               placeholder: loc(.fieldTitlePlaceholder))
                         field(loc(.fieldAuthorLabel), text: $model.bookAuthor,
                               placeholder: loc(.fieldAuthorPlaceholder))
+                        Toggle(isOn: $model.removeEmoji) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(loc(.optionRemoveEmojiLabel))
+                                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.85))
+                                Text(loc(.optionRemoveEmojiDetail))
+                                    .font(.system(size: 10.5, design: .rounded))
+                                    .foregroundStyle(.white.opacity(0.55))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .tint(Brand.mint)
                     }
                     .frame(maxWidth: 360)
                     .disabled(model.isProcessing)
                     .padding(.top, 2)
+                }
+
+                if let note = model.repairNote {
+                    Text(note)
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(Brand.mint)
+                        .multilineTextAlignment(.center)
                 }
 
                 if let summary = model.summary {
