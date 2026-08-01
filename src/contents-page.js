@@ -16,6 +16,7 @@
 // leads, so restoring the links is a lookup rather than a guess.
 
 const cheerio = require('cheerio');
+const { serializeXml } = require('./epub-text');
 
 // A page has to be almost entirely navigation labels to count. The margin
 // exists for the title line and the odd "附錄" the navigation omits — not to
@@ -83,7 +84,7 @@ function relink(source, labels) {
     linked++;
   }
 
-  return { xhtml: linked ? $.xml() : source, linked };
+  return { xhtml: linked ? serializeXml($) : source, linked };
 }
 
 module.exports = { inspect, relink, normalize, LABEL_SHARE };

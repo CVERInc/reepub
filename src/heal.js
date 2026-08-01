@@ -244,11 +244,13 @@ async function main() {
     for (const key of ambiguous) labels.delete(key);
 
     let bodiesRepaired = 0;
+    let pictographs = 0;
     let contentsPages = 0;
     let linksRestored = 0;
     const chapters = book.chapters.map(chapter => {
       const relocated = relocateChapter(chapter, book, pool);
       if (relocated.bodyRepaired) bodiesRepaired++;
+      pictographs += relocated.pictographsRemoved;
 
       let content = relocated.content;
       if (contentsPage.inspect(content, labels).isContents) {
@@ -266,6 +268,9 @@ async function main() {
     });
     if (bodiesRepaired > 0) {
       findings.push(`${bodiesRepaired} document${bodiesRepaired === 1 ? '' : 's'} had content sitting outside <body> → wrapped`);
+    }
+    if (pictographs > 0) {
+      findings.push(`${pictographs} emoji would have cost this book its cover and contents on a Kindle → removed`);
     }
     if (linksRestored > 0) {
       findings.push(`the book's own contents page listed ${linksRestored} chapters with nothing to tap → linked`);

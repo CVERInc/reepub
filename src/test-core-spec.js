@@ -599,8 +599,17 @@ body { -epub-writing-mode: vertical-rl; }`);
         const c = fs.readFileSync(f, 'utf8');
         return c.includes('<!DOCTYPE html>') && !/XHTML 1\.1/.test(c);
       }), 'every repaired chapter carries the EPUB 3 doctype');
-      assert(healedChapters.some(f => fs.readFileSync(f, 'utf8').includes('&#160;')),
-        'an entity the dropped doctype used to define survives as a numeric reference');
+      // What must not happen is &nbsp; outliving the doctype that defined it,
+      // leaving a name nothing resolves. A literal U+00A0 settles that as well
+      // as &#160; does, and is what the chapter now carries, since escaping
+      // every non-ASCII codepoint is how a Chinese book ended up with no
+      // Chinese characters in it.
+      assert(healedChapters.some(f => {
+        const c = fs.readFileSync(f, 'utf8');
+        return c.includes(' ') || c.includes('&#160;');
+      }), 'an entity the dropped doctype used to define outlives it as a character, not a dangling name');
+      assert(healedChapters.every(f => !/&nbsp;/.test(fs.readFileSync(f, 'utf8'))),
+        'and no named entity is left behind for a parser with no doctype to guess at');
 
       const healedCss = fs.readFileSync(walk(hx).find(f => f.endsWith('.css')), 'utf8');
       assert(/-epub-writing-mode:\s*vertical-rl/.test(healedCss) && !/@font-face/.test(healedCss),

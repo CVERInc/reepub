@@ -11,6 +11,25 @@ it had already produced were invalid, and the validator that was supposed to
 catch that had passed them. This release makes the guarantees real and adds the
 CI that keeps them that way. See [PRINCIPLES.md](PRINCIPLES.md).
 
+### Fixed — a valid book that no Kindle would show
+
+- **Emoji in the text cost a book its cover and its entire table of contents.**
+  Not the chapter containing them — the whole book. It opened on page one with
+  no cover and no way to navigate, while the file was valid EPUB 3 and epubcheck
+  passed it clean. `heal` and the web pipeline now remove pictographic emoji and
+  report how many; `heal` names it as a repair rather than doing it quietly.
+
+  Only pictographs go. Arrows, bullets and ticks stay, so a diagram built from
+  boxes and arrows still reads as one, and the range stops short of U+20000
+  where CJK Extension B lives — 鹿鼎記 carries 𡒉 twelve times and displays
+  perfectly, so no book loses a character of its own language to this.
+
+- Every non-ASCII character was written as a numeric reference on serialisation,
+  so a Chinese chapter left the pipeline with 1227 escapes and not one readable
+  glyph, each character costing eight bytes instead of three. All three
+  serialisation sites now share one exit. This also hid the emoji above from
+  every search over the file's bytes, where they appear as plain ASCII.
+
 ### Fixed — books that were already shipped were invalid
 
 - EPUB 3 packages were written without the navigation document the format

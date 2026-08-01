@@ -18,6 +18,7 @@
 
 const path = require('path');
 const cheerio = require('cheerio');
+const { serializeXml, stripPictographsFrom } = require('./epub-text');
 
 const XHTML_NS = 'http://www.w3.org/1999/xhtml';
 
@@ -45,6 +46,45 @@ const BODY_BLOCK_ELEMENTS = new Set([
 // src/styles/reepub-core.css; every site class missing from this table is
 // dropped, which is how fade-up / accent / cyan / container / content-section
 // stop shipping with no stylesheet behind them. Callers pass this in as
+/**
+ * Take out the wrappers the book does not need.
+ *
+ * A web page nests to hold a layout together: a section inside a container
+ * inside a hero, none of which mean anything once the CSS that arranged them
+ * is gone. Class translation already strips any class with no stylesheet
+ * behind it, so a <div> left with no attributes at all is exactly that — a
+ * wrapper whose only job went with the page it came from.
+ *
+ * They are not free. A chapter that arrived eight elements deep would not show
+ * its book's cover on a Kindle: the conversion produced a book with no cover
+ * page at all, and the same text set as flat headings and paragraphs — three
+ * deep, like a book scanned from paper — came through intact. That was
+ * bisected against the device, and it is why this runs rather than being left
+ * as tidiness.
+ *
+ * Unwrapping is only ever safe for an element whose children are the same kind
+ * of content it was: a div holds flow content and sits in flow content, so its
+ * children can stand where it stood.
+ */
+// A wrapper the class translation emptied out is a div the web layout needed
+// and the book does not: it carries nothing, styles nothing, and only adds a
+// level for a reader to walk. A wrapper that kept a class is still doing
+// something visible, so it stays — depth is worth less than the look of the
+// page, and nothing has shown that a reader minds it.
+//
+// Elements are snapshotted before each pass: mutating a live cheerio selection
+// while iterating it corrupts the tree quietly, and the damage survives as a
+// file that still parses.
+function unwrapEmptyGrouping($) {
+  let guard = 0;
+  while (guard++ < 32) {
+    const bare = $('div, span').toArray()
+      .filter(el => Object.keys(el.attribs || {}).length === 0);
+    if (bare.length === 0) break;
+    for (const el of bare) $(el).replaceWith($(el).contents());
+  }
+}
+
 // opts.classMap — sanitizeChapter never applies it implicitly, because a
 // chapter from some other site must not silently inherit this site's table.
 const DEFAULT_CLASS_MAP = Object.freeze({
@@ -178,6 +218,14 @@ function sanitizeChapter(rawHtml, opts) {
     }
   });
 
+  unwrapEmptyGrouping($);
+
+  // A web page decorates its headings with emoji. A Kindle answers by showing
+  // the book with no cover and no table of contents at all — see
+  // stripPictographsFrom in epub-text.js for how that was pinned down. The
+  // label they decorated says the same thing without them.
+  stripPictographsFrom($);
+
   $('img[src]').each((_, el) => {
     const $el = $(el);
     const src = $el.attr('src');
@@ -212,7 +260,7 @@ function sanitizeChapter(rawHtml, opts) {
   $head.find('title').text(title);
   $head.find('link').attr('href', cssHref);
 
-  const xhtml = `<?xml version="1.0" encoding="UTF-8"?>\n${XHTML11_DOCTYPE}\n${$.xml()}\n`;
+  const xhtml = `<?xml version="1.0" encoding="UTF-8"?>\n${XHTML11_DOCTYPE}\n${serializeXml($)}\n`;
   return { xhtml, title };
 }
 

@@ -29,7 +29,7 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const { execFileSync } = require('child_process');
 const { newUuid, buildOpf, buildNcx, buildNavDocument, HREFS } = require('./binder');
-const { escapeAttr } = require('./epub-text');
+const { escapeAttr, serializeXml, stripPictographsFrom } = require('./epub-text');
 const { validateEpub } = require('./validator');
 const { generateCover, buildCoverImagePage } = require('./cover-generator');
 
@@ -595,6 +595,11 @@ function relocateChapter(chapter, volume, pool) {
   let rewritten = repairMissingBody($);
   const bodyRepaired = rewritten;
 
+  // Emoji cost a book its cover and its whole table of contents on a Kindle.
+  // See stripPictographsFrom in epub-text.js for what was tested to land here.
+  const pictographsRemoved = stripPictographsFrom($);
+  if (pictographsRemoved > 0) rewritten = true;
+
   for (const el of $('*').toArray()) {
     for (const attr of REFERENCE_ATTRIBUTES) {
       const raw = el.attribs ? el.attribs[attr] : undefined;
@@ -624,8 +629,9 @@ function relocateChapter(chapter, volume, pool) {
   return {
     title: chapter.title || decodeXmlEntities($('head > title').first().text()).trim()
       || path.posix.basename(chapter.path),
-    content: rewritten ? $.xml() : source,
+    content: rewritten ? serializeXml($) : source,
     bodyRepaired,
+    pictographsRemoved,
   };
 }
 

@@ -153,6 +153,77 @@ async function main() {
 
     const noH1 = sanitizer.sanitizeChapter('<html><body><p>no heading</p></body></html>', opts);
     assert(noH1 && noH1.title === 'Chapter 1', 'falls back to opts.fallbackTitle when no <h1>');
+
+    // A page nests to hold a layout together. Once the CSS that arranged it is
+    // gone, a div with nothing left on it is a wrapper the book does not need.
+    // Depth was once suspected of costing a book its cover on a Kindle; the
+    // books that tested that were confounded (they shipped as EPUB 2), so this
+    // asserts tidiness, not a device fix. Nothing here may claim otherwise.
+    const nested = sanitizer.sanitizeChapter(`<html><body>
+      <div class="ch-hero"><div class="container"><div class="content-section">
+        <p class="fw-box">deep</p>
+      </div></div></div></body></html>`, opts);
+    const depthOf = (xhtml) => {
+      let depth = 0;
+      let max = 0;
+      for (const m of xhtml.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)[^>]*?(\/?)>/g)) {
+        const [, close, tag, self] = m;
+        if (/^(meta|link|br|hr|img)$/i.test(tag) || self === '/') continue;
+        if (close) depth--; else max = Math.max(max, ++depth);
+      }
+      return max;
+    };
+    assert(!/<div/.test(nested.xhtml),
+      `wrappers left bare by class stripping are taken out (got ${JSON.stringify((nested.xhtml.match(/<div[^>]*>/g) || []).join(''))})`);
+    assert(nested.xhtml.includes('reepub-box'),
+      'and the content they wrapped, with the class that survived, stays');
+    assert(depthOf(nested.xhtml) <= 4,
+      `the chapter comes out shallow enough for a reader to convert (depth ${depthOf(nested.xhtml)})`);
+    assert(isWellFormed(nested.xhtml),
+      'unwrapping leaves the document well-formed — a div taken out of flow content leaves flow content');
+
+    const styled = sanitizer.sanitizeChapter(
+      '<html><body><div class="fw-box"><p>kept</p></div></body></html>', opts);
+    assert(/<div class="reepub-box">/.test(styled.xhtml),
+      'a wrapper that still carries a class is left alone — it is doing something');
+
+    // A chapter came out of the pipeline with 1227 numeric character references
+    // and not one readable Chinese character in it: cheerio escapes every
+    // non-ASCII codepoint on serialisation. It is well-formed, epubcheck passes
+    // it, and no book that works on a device is written that way. Only the
+    // escapes cheerio added come back — the XML specials must stay escaped or
+    // the markup they sit in breaks.
+    const cjk = sanitizer.sanitizeChapter(
+      '<html><body><p>活出有目的的人生 &amp; a &lt;tag&gt;</p></body></html>', opts);
+    assert(cjk.xhtml.includes('活出有目的的人生'),
+      'Chinese is written as Chinese, not as a run of &#x....; escapes');
+    assert(!/&#x[0-9a-fA-F]+;/.test(cjk.xhtml),
+      `no numeric character references survive (got ${(cjk.xhtml.match(/&#x[0-9a-fA-F]+;/g) || []).length})`);
+    assert(cjk.xhtml.includes('&amp;') && cjk.xhtml.includes('&lt;tag&gt;'),
+      'and the five XML specials are still escaped — decoding those would break the file');
+    assert(isWellFormed(cjk.xhtml), 'the decoded chapter is still well-formed XML');
+
+    // The defect that cost this project forty builds on a device: a Kindle
+    // shows a book carrying emoji with no cover and no table of contents at
+    // all, while epubcheck passes it clean. Removing 222 emoji from the
+    // complete book — and changing nothing else — brought the cover back.
+    const emoji = sanitizer.sanitizeChapter(
+      '<html><body><h2>🧠 概念圖解</h2><p>很好 🚀 的想法</p>'
+      + '<p class="fw-arrow">頂尖人才 → 卓越團隊 • 𡒉鼎記</p>'
+      + '<p><img src="a.png" alt="📊 圖表"/></p></body></html>', opts);
+    assert(!/[\u{1F000}-\u{1FAFF}]/u.test(emoji.xhtml),
+      'pictographic emoji do not reach the book');
+    assert(emoji.xhtml.includes('>概念圖解<'),
+      'and the label they decorated keeps its text, with no gap left where the icon was');
+    assert(emoji.xhtml.includes('很好 的想法'),
+      'an emoji between words leaves one space, so the words do not run together');
+    assert(emoji.xhtml.includes('→') && emoji.xhtml.includes('•'),
+      'arrows and bullets stay — a diagram of boxes and arrows still reads as one');
+    assert(emoji.xhtml.includes('𡒉'),
+      'CJK Extension B survives: a book never loses a character of its own language to this');
+    assert(/alt="圖表"/.test(emoji.xhtml),
+      'alt text is cleaned too — it is text a reader can be shown');
+    assert(isWellFormed(emoji.xhtml), 'and the chapter is still well-formed XML');
   }
 
   section('Sanitizer: sortChapterFiles');
