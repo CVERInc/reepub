@@ -312,6 +312,11 @@ function readVolume(epubPath, volumeRoot, options = {}) {
     const idref = $opf(el).attr('idref');
     const item = manifest.get(idref);
     if (!item) fail(`${name} has a spine itemref "${idref}" that the manifest does not declare`);
+    // An EPUB 3 navigation document is the book's table of contents, not a
+    // chapter of it. The rebuild always writes a fresh one, so carrying the old
+    // one through as content would file the table of contents inside the book —
+    // and rebuilding an already-rebuilt book would do it again every time.
+    if ((item.properties || '').split(/\s+/).includes('nav')) continue;
     spine.push(item.path);
   }
   if (dropTableOfContents && spine.length < 2) {

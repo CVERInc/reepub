@@ -30,6 +30,7 @@ const {
   COVER_IMAGE,
 } = require('./merge');
 const { validateEpub } = require('./validator');
+const { generateCover, layoutForDirection } = require('./cover-generator');
 
 const HELP = `reepub heal — repair a broken EPUB.
 
@@ -39,6 +40,11 @@ Usage:
 Options:
   --title <title>     Override the title (default: the book's own)
   --author <author>   Override the author (default: the book's own)
+  --cover             Draw a new cover, replacing whatever the book had.
+                      The layout follows the book's reading direction:
+                      right-to-left gets the vertical cover, everything else
+                      the horizontal one. Without this flag the book keeps the
+                      cover it came with.
   --no-validate       Skip validation of the repaired book
   -h, --help          Show this help
 
@@ -62,11 +68,12 @@ function fail(message) {
 }
 
 function parseArgs(args) {
-  const options = { title: '', author: '', validate: true, positional: [] };
+  const options = { title: '', author: '', cover: false, validate: true, positional: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--title' && i + 1 < args.length) { options.title = args[++i]; continue; }
     if (arg === '--author' && i + 1 < args.length) { options.author = args[++i]; continue; }
+    if (arg === '--cover') { options.cover = true; continue; }
     if (arg === '--no-validate') { options.validate = false; continue; }
     if (arg.startsWith('-')) fail(`unknown option ${arg} (see --help)`);
     options.positional.push(arg);
@@ -176,8 +183,20 @@ async function main() {
       findings.push(`the declared cover image is missing from the book (${book.coverImagePath}) → dropped the declaration`);
       coverImagePath = null;
     }
+    // The cover page the book arrived with is furniture the rebuild replaces,
+    // whether the image is being kept or redrawn.
     const coverPage = coverImagePath && book.chapters.find(ch => isCoverPage(book, ch));
     if (coverPage) book.chapters = book.chapters.filter(ch => ch !== coverPage);
+
+    const coverTitle = options.title || book.title || path.basename(inputPath, '.epub');
+    const coverAuthor = options.author || book.creator;
+    if (options.cover) {
+      const layout = layoutForDirection(book.pageDirection);
+      console.log(`  drawing a new ${layout} cover…`);
+      coverImagePath = path.join(scratch, COVER_IMAGE);
+      await generateCover(coverTitle, coverAuthor, coverImagePath,
+        { pageDirection: book.pageDirection });
+    }
 
     book.hrefByPath = new Map();
     book.chapters.forEach((chapter, i) => {
@@ -209,8 +228,8 @@ async function main() {
     }
 
     writeEpub(outputPath, path.join(scratch, 'book-out'), {
-      title: options.title || book.title || path.basename(inputPath, '.epub'),
-      author: options.author || book.creator,
+      title: coverTitle,
+      author: coverAuthor,
       language: book.language || LANGUAGE_FALLBACK,
       pageDirection: book.pageDirection,
       chapters,

@@ -577,6 +577,78 @@ body { -epub-writing-mode: vertical-rl; }`);
       assert(false, 'heal wrote the book that already had a cover');
     }
 
+    // --cover redraws instead of preserving. The layout is not the caller's
+    // choice: a right-to-left book gets the vertical cover because of how it is
+    // read, so a series cannot end up half vertical and half horizontal.
+    const redrawn = path.join(work, 'covered-redrawn.epub');
+    const redrawRun = spawnSync(process.execPath,
+      [path.join(__dirname, 'heal.js'), '--cover', coveredEpub, redrawn], { encoding: 'utf8' });
+    assert(redrawRun.status === 0,
+      `heal --cover succeeds (exit ${redrawRun.status}; ${(redrawRun.stderr || '').trim().split('\n')[0] || 'no stderr'})`);
+    if (fs.existsSync(redrawn)) {
+      const rx = unzipTo(redrawn, path.join(work, 'redrawn-x'));
+      const drawn = walk(rx).find(f => /cover\.jpe?g$/i.test(f));
+      assert(!!drawn, 'a cover image is present after redrawing');
+      const original = path.join(covered, 'OEBPS', 'images', 'cover.jpeg');
+      assert(drawn && fs.statSync(drawn).size !== fs.statSync(original).size,
+        'the cover was actually redrawn, not copied from the source book');
+      assert(/drawing a new horizontal cover/.test(redrawRun.stdout || ''),
+        'a book with no reading direction is reported as getting the horizontal cover');
+      assert(validateEpub(redrawn).success === true, 'the redrawn book validates');
+    } else {
+      assert(false, 'heal --cover wrote the book');
+    }
+
+    // Healing twice must equal healing once. A rebuilt book carries an EPUB 3
+    // navigation document in its spine; reading that back as a chapter files
+    // the table of contents inside the book, and then writes a fresh nav next
+    // to it — so every re-run grew the text by another copy of the contents.
+    section('Heal: healing an already-healed book changes nothing');
+
+    const once = path.join(work, 'idem-1.epub');
+    const twice = path.join(work, 'idem-2.epub');
+    const runOnce = spawnSync(process.execPath,
+      [path.join(__dirname, 'heal.js'), coveredEpub, once], { encoding: 'utf8' });
+    assert(runOnce.status === 0, `first heal succeeds (exit ${runOnce.status})`);
+    const runTwice = spawnSync(process.execPath,
+      [path.join(__dirname, 'heal.js'), once, twice], { encoding: 'utf8' });
+    assert(runTwice.status === 0, `healing the healed book succeeds (exit ${runTwice.status})`);
+
+    if (fs.existsSync(once) && fs.existsSync(twice)) {
+      const readingText = (epub, into) => {
+        const root = unzipTo(epub, into);
+        const opfPath = walk(root).find(f => f.endsWith('.opf'));
+        const opf = fs.readFileSync(opfPath, 'utf8');
+        const manifest = new Map();
+        for (const m of opf.matchAll(/<item\s[^>]*>/g)) {
+          const id = (m[0].match(/\bid="([^"]+)"/) || [])[1];
+          const href = (m[0].match(/\bhref="([^"]+)"/) || [])[1];
+          const props = (m[0].match(/\bproperties="([^"]*)"/) || [, ''])[1];
+          if (id && href) manifest.set(id, { href: decodeURIComponent(href), props });
+        }
+        let text = '';
+        for (const m of opf.matchAll(/<itemref[^>]*idref="([^"]+)"/g)) {
+          const item = manifest.get(m[1]);
+          if (!item || item.props.split(/\s+/).includes('nav')) continue;
+          const p = path.resolve(path.dirname(opfPath), item.href);
+          if (!fs.existsSync(p)) continue;
+          text += fs.readFileSync(p, 'utf8').replace(/<[^>]*>/g, '');
+        }
+        return text.replace(/\s+/g, '');
+      };
+      const t1 = readingText(once, path.join(work, 'idem-1-x'));
+      const t2 = readingText(twice, path.join(work, 'idem-2-x'));
+      assert(t1.length > 0 && t1 === t2,
+        `the reading text is byte-identical after a second heal (${t1.length} vs ${t2.length} characters)`);
+
+      const spineCount = f => (fs.readFileSync(walk(unzipTo(f, fs.mkdtempSync(path.join(os.tmpdir(), 'sp-'))))
+        .find(x => x.endsWith('.opf')), 'utf8').match(/<itemref/g) || []).length;
+      assert(spineCount(once) === spineCount(twice),
+        `the reading order does not grow on a second heal (${spineCount(once)} vs ${spineCount(twice)})`);
+    } else {
+      assert(false, 'both heal runs wrote their book');
+    }
+
     const inPlace = spawnSync(process.execPath, [path.join(__dirname, 'heal.js'), sickEpub, sickEpub],
       { encoding: 'utf8' });
     assert(inPlace.status !== 0 && /in place/.test(inPlace.stderr || ''),
