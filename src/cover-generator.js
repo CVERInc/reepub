@@ -367,6 +367,34 @@ async function fitJustifiedTitle(page, title, author, translator, layout, lines)
 }
 
 /**
+ * The cover page for a book whose cover is a picture reepub did not draw.
+ *
+ * Preserving someone's cover means preserving what they see when they open the
+ * book, not only the thumbnail on the shelf. A typographic page here would
+ * replace a scanned dust jacket with a setting of its title — which is a new
+ * cover, however carefully made, and nobody asked for one.
+ */
+function buildCoverImagePage({ imageHref, title = '', language = 'en' } = {}) {
+  const lang = escapeAttr(language || 'en');
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
+<head>
+  <meta charset="UTF-8" />
+  <title>${escapeXML(title)}</title>
+  <style>
+    html, body { margin: 0; padding: 0; background: #000; }
+    body { text-align: center; page-break-after: always; break-after: page; }
+    img { width: 100%; height: auto; display: block; margin: 0 auto; }
+  </style>
+</head>
+<body epub:type="cover">
+  <img src="${escapeAttr(imageHref)}" alt="${escapeAttr(title)}" />
+</body>
+</html>`;
+}
+
+/**
  * The largest title that still fits its box, when it is set as one run of text
  * rather than justified line by line.
  *
@@ -481,6 +509,7 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
 module.exports = {
   DEFAULT_IMPRINT,
   buildCoverHtml,
+  buildCoverImagePage,
   buildCoverPage,
   generateCover,
   layoutForDirection,

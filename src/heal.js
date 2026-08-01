@@ -296,6 +296,7 @@ async function main() {
       lines: coverFit.lines,
       lineScales: coverFit.lineScales,
       imprint: coverFit.imprint,
+      coverDrawn: options.cover,
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);

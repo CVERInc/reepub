@@ -656,8 +656,18 @@ body { -epub-writing-mode: vertical-rl; }`);
       const cOpf = fs.readFileSync(walk(cx).find(f => f.endsWith('.opf')), 'utf8');
       assert(/properties="[^"]*\bcover-image\b/.test(cOpf) || /<meta\s+name="cover"/.test(cOpf),
         'the repaired book still DECLARES its cover image, not just contains it');
-      assert(walk(cx).some(f => /cover\.jpe?g$/i.test(f)),
-        'the cover image itself is carried across');
+      const carried = walk(cx).find(f => /cover\.jpe?g$/i.test(f));
+      assert(!!carried, 'the cover image itself is carried across');
+      assert(carried && fs.readFileSync(carried)
+        .equals(fs.readFileSync(path.join(covered, 'OEBPS', 'images', 'cover.jpeg'))),
+        'the preserved cover image is byte-identical to the one the book arrived with');
+      // Preserving a cover means preserving what the reader opens the book to,
+      // not only the shelf thumbnail. Setting the title in type here would be
+      // drawing a new cover over someone's scanned dust jacket — a different
+      // request, and one nobody made.
+      const coverPage = fs.readFileSync(walk(cx).find(f => /cover\.xhtml$/.test(f)), 'utf8');
+      assert(/<img[^>]*src="[^"]*cover\.jpe?g"/.test(coverPage) && !/class="title"/.test(coverPage),
+        'a preserved cover is shown as the picture it is, not re-set as type');
       // One cover page, not two: the original is furniture the rebuild replaces.
       const coverRefs = (cOpf.match(/<itemref[^>]*idref="cover-xhtml"/g) || []).length;
       assert(coverRefs === 1,

@@ -31,7 +31,7 @@ const { execFileSync } = require('child_process');
 const { newUuid, buildOpf, buildNcx, buildNavDocument, HREFS } = require('./binder');
 const { escapeAttr } = require('./epub-text');
 const { validateEpub } = require('./validator');
-const { generateCover, buildCoverPage, layoutForDirection } = require('./cover-generator');
+const { generateCover, buildCoverPage, buildCoverImagePage, layoutForDirection } = require('./cover-generator');
 
 // EPUB 3, because it is the only version whose spine can carry
 // page-progression-direction: epubcheck rejects that attribute on an EPUB 2
@@ -684,11 +684,12 @@ function writeEpub(outputPath, bookDir, book) {
   book.pool.writeTo(oebps);
 
   if (coverImage) {
-    // The cover page is real type, not a picture of type: it stays sharp at
-    // any size, can be selected, and costs a few hundred bytes. The raster
-    // beside it exists because a shelf needs a thumbnail — both come from the
-    // same design and the same fitted measurements, so they cannot disagree.
-    fs.writeFileSync(path.join(oebps, HREFS.coverPage), buildCoverPage({
+    // A cover reepub drew is written as type — it stays sharp at any size,
+    // can be selected, and costs a few hundred bytes, and the raster beside it
+    // exists only because a shelf needs a thumbnail. A cover the book already
+    // had is shown as the picture it is: replacing it with a setting of the
+    // title would be drawing a new cover, which is a different request.
+    fs.writeFileSync(path.join(oebps, HREFS.coverPage), book.coverDrawn ? buildCoverPage({
       title: book.title,
       author: book.author,
       translator: book.translator,
@@ -699,6 +700,10 @@ function writeEpub(outputPath, bookDir, book) {
       lines: book.lines,
       lineScales: book.lineScales,
       imprint: book.imprint,
+    }) : buildCoverImagePage({
+      imageHref: coverImage,
+      title: book.title,
+      language: book.language,
     }));
     fs.mkdirSync(path.join(oebps, HREFS.imagesDir), { recursive: true });
     fs.copyFileSync(book.coverImagePath, path.join(oebps, HREFS.imagesDir, COVER_IMAGE));
@@ -815,6 +820,7 @@ async function main() {
       title, author, language, pageDirection: first.pageDirection, chapters, pool, coverImagePath,
       titleScale: coverFit.titleScale, singleLine: coverFit.singleLine,
       lines: coverFit.lines, lineScales: coverFit.lineScales, imprint: coverFit.imprint,
+      coverDrawn: Boolean(options.cover),
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);
