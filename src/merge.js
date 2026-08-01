@@ -696,6 +696,9 @@ function writeEpub(outputPath, bookDir, book) {
       layout: layoutForDirection(book.pageDirection),
       titleScale: book.titleScale,
       singleLine: book.singleLine,
+      lines: book.lines,
+      lineScales: book.lineScales,
+      imprint: book.imprint,
     }));
     fs.mkdirSync(path.join(oebps, HREFS.imagesDir), { recursive: true });
     fs.copyFileSync(book.coverImagePath, path.join(oebps, HREFS.imagesDir, COVER_IMAGE));
@@ -811,6 +814,7 @@ async function main() {
     writeEpub(outputPath, path.join(scratch, 'book'), {
       title, author, language, pageDirection: first.pageDirection, chapters, pool, coverImagePath,
       titleScale: coverFit.titleScale, singleLine: coverFit.singleLine,
+      lines: coverFit.lines, lineScales: coverFit.lineScales, imprint: coverFit.imprint,
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);

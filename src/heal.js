@@ -45,6 +45,8 @@ Options:
                       translator follows: dc:creator with the aut relator and
                       dc:contributor with trl, and on the cover a smaller line
                       under the author.
+  --imprint <name>    The binder's mark at the foot of the cover
+                      (default: "Reepub Editions"; pass "" for none)
   --cover             Draw a new cover, replacing whatever the book had.
                       The layout follows the book's reading direction:
                       right-to-left gets the vertical cover, everything else
@@ -73,12 +75,13 @@ function fail(message) {
 }
 
 function parseArgs(args) {
-  const options = { title: '', author: '', translator: '', cover: false, validate: true, positional: [] };
+  const options = { title: '', author: '', translator: '', imprint: undefined, cover: false, validate: true, positional: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--title' && i + 1 < args.length) { options.title = args[++i]; continue; }
     if (arg === '--author' && i + 1 < args.length) { options.author = args[++i]; continue; }
     if (arg === '--translator' && i + 1 < args.length) { options.translator = args[++i]; continue; }
+    if (arg === '--imprint' && i + 1 < args.length) { options.imprint = args[++i]; continue; }
     if (arg === '--cover') { options.cover = true; continue; }
     if (arg === '--no-validate') { options.validate = false; continue; }
     if (arg.startsWith('-')) fail(`unknown option ${arg} (see --help)`);
@@ -210,7 +213,7 @@ async function main() {
       console.log(`  drawing a new ${layout} cover…`);
       coverImagePath = path.join(scratch, COVER_IMAGE);
       coverFit = await generateCover(coverTitle, coverAuthor, coverImagePath,
-        { pageDirection: book.pageDirection, translator: options.translator });
+        { pageDirection: book.pageDirection, translator: options.translator, imprint: options.imprint });
     }
 
     book.hrefByPath = new Map();
@@ -290,6 +293,9 @@ async function main() {
       coverImagePath,
       titleScale: coverFit.titleScale,
       singleLine: coverFit.singleLine,
+      lines: coverFit.lines,
+      lineScales: coverFit.lineScales,
+      imprint: coverFit.imprint,
     });
 
     const sizeKb = (fs.statSync(outputPath).size / 1024).toFixed(0);

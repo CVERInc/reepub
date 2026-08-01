@@ -21,6 +21,7 @@
 
 const { chromium } = require('playwright');
 const { escapeXML, escapeAttr } = require('./epub-text');
+const { setTitle } = require('./title-setting');
 
 // The layouts the stylesheet below actually defines. Kept as an allowlist
 // because `layout` lands in a class attribute: a value from outside this set is
@@ -47,6 +48,15 @@ const TITLE_BOX = {
 // to be enormous. What stops it is the box, not a number chosen in advance.
 const TITLE_SCALE = { min: 3.2, max: 34, tolerance: 0.05 };
 const DEFAULT_TITLE_SCALE = 9;
+
+// The binder's own mark. A tool that stamps every book it touches with one
+// name is opinionated in someone else's library, so it is a setting; the
+// default is simply what this project is called.
+const DEFAULT_IMPRINT = 'Reepub Editions';
+
+// A column of type one word per line is taller than any cover once each line
+// is justified, so a title is merged back together until it fits.
+const MAX_TITLE_LINES = 4;
 
 // How much bigger wrapping must make the title before it is worth breaking a
 // line at all.
@@ -134,6 +144,40 @@ function coverStyles(titleScale, singleLine) {
       word-break: auto-phrase;
       overflow-wrap: break-word;
     }
+    /* Latin display type on a cover is set in capitals, and not only by
+       convention: capitals have no descenders and one cap height, so lines
+       stack tight and a justified block squares up. CJK has no case, so this
+       is simply inert there. */
+    .reepub-cover .title { text-transform: uppercase; }
+    .reepub-cover .title-justified {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      font-size: 1em;
+    }
+    .reepub-cover .title-justified .line {
+      display: block;
+      line-height: 1.02;
+      white-space: nowrap;
+    }
+    /* The imprint sits at the foot, between the selection tick and the
+       overflow menu — the one edge of the cover the shelf leaves alone. It is
+       small rather than faint: a grey at a third opacity is simply absent on a
+       reflective screen, which is how the last one disappeared. */
+    .reepub-cover .imprint {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 5.5em;
+      margin: 0;
+      text-align: center;
+      font-size: 1.5em;
+      font-weight: 400;
+      letter-spacing: 0.62em;
+      text-indent: 0.62em;
+      text-transform: uppercase;
+    }
+    .reepub-cover .imprint:empty { display: none; }
     .reepub-cover .credits {
       margin-top: 7em;
       display: flex;
@@ -172,6 +216,8 @@ function coverStyles(titleScale, singleLine) {
       justify-content: center;
       gap: 6em;
     }
+    /* The imprint stays horizontal on a vertical cover: it is not part of the
+       text of the book, it is the binder's mark at the foot. */
     .reepub-cover.layout-vertical .title,
     .reepub-cover.layout-vertical .credits,
     .reepub-cover.layout-vertical .author,
@@ -195,14 +241,34 @@ function coverStyles(titleScale, singleLine) {
   `;
 }
 
-function coverBody(title, author, translator) {
+/**
+ * The title, either as one wrapping run of text or as lines justified
+ * individually to the same width.
+ *
+ * `lineScales` is what makes a block of type out of a ragged wrap: each line
+ * gets the size that makes it exactly as wide as the others, so the shortest
+ * line is the largest. Emphasis comes out of the structure — nobody decides
+ * that ELON should be three times the size of THE BOOK OF; being four
+ * characters against eleven decides it.
+ */
+function titleMarkup(title, lines, lineScales) {
+  if (!lines || !lineScales) {
+    return `<h1 class="title">${escapeXML(title == null ? '' : title)}</h1>`;
+  }
+  const set = lines.map((line, i) =>
+    `<span class="line" style="font-size: ${lineScales[i]}em">${escapeXML(line)}</span>`).join('\n      ');
+  return `<h1 class="title title-justified">\n      ${set}\n    </h1>`;
+}
+
+function coverBody(title, author, translator, imprint, lines, lineScales) {
   return `<div class="stage">
-    <h1 class="title">${escapeXML(title == null ? '' : title)}</h1>
+    ${titleMarkup(title, lines, lineScales)}
     <div class="credits">
       <p class="author">${escapeXML(author == null ? '' : author)}</p>
       <p class="translator">${escapeXML(translator == null ? '' : translator)}</p>
     </div>
-  </div>`;
+  </div>
+  <p class="imprint">${escapeXML(imprint == null ? '' : imprint)}</p>`;
 }
 
 /**
@@ -212,8 +278,9 @@ function coverBody(title, author, translator) {
  * title/author are untrusted text: raw interpolation let a title like
  * 'A <Book>' inject markup into the rendered cover.
  */
-function buildCoverHtml(title, author, layout = 'vertical', translator = '', titleScale, singleLine = false) {
+function buildCoverHtml(title, author, layout = 'vertical', translator = '', titleScale, singleLine = false, extra = {}) {
   assertLayout(layout);
+  const imprint = extra.imprint === undefined ? DEFAULT_IMPRINT : extra.imprint;
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -226,7 +293,7 @@ ${coverStyles(titleScale, singleLine)}
 </style>
 </head>
 <body>
-<div class="reepub-cover layout-${layout}">${coverBody(title, author, translator)}</div>
+<div class="reepub-cover layout-${layout}">${coverBody(title, author, translator, imprint, extra.lines, extra.lineScales)}</div>
 </body>
 </html>`;
 }
@@ -235,8 +302,9 @@ ${coverStyles(titleScale, singleLine)}
  * The same design as the XHTML page bound into the book — real type, so it
  * stays sharp at any size, can be selected, and costs a few hundred bytes.
  */
-function buildCoverPage({ title, author, translator = '', layout = 'vertical', language = 'en', titleScale, singleLine = false } = {}) {
+function buildCoverPage({ title, author, translator = '', layout = 'vertical', language = 'en', titleScale, singleLine = false, imprint, lines, lineScales } = {}) {
   assertLayout(layout);
+  const mark = imprint === undefined ? DEFAULT_IMPRINT : imprint;
   const lang = escapeAttr(language || 'en');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
@@ -252,13 +320,55 @@ ${coverStyles(titleScale, singleLine)}
   </style>
 </head>
 <body epub:type="cover">
-  <div class="reepub-cover layout-${layout}">${coverBody(title, author, translator)}</div>
+  <div class="reepub-cover layout-${layout}">${coverBody(title, author, translator, mark, lines, lineScales)}</div>
 </body>
 </html>`;
 }
 
 /**
- * The largest title that still fits its box.
+ * Set an English title as a justified block: every line the same width, each
+ * at whatever size that takes.
+ *
+ * The per-line sizes are a measurement, not a search — a line's width is
+ * linear in its font size, so one pass at a reference size gives the size that
+ * makes it fill the measure exactly. Only the height of the finished block is
+ * unknown, and that is one uniform scale away from fitting.
+ */
+async function fitJustifiedTitle(page, title, author, translator, layout, lines) {
+  const REFERENCE = 10;
+  const box = TITLE_BOX[layout];
+
+  await page.setContent(buildCoverHtml(title, author, layout, translator, REFERENCE, false,
+    { lines, lineScales: lines.map(() => REFERENCE) }));
+
+  const measured = await page.evaluate(({ w, h }) => {
+    const stage = document.querySelector('.stage').getBoundingClientRect();
+    const widths = [...document.querySelectorAll('.title .line')].map((el) => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return range.getBoundingClientRect().width;
+    });
+    return { widths, measure: stage.width * w, room: stage.height * h };
+  }, { w: box.width, h: box.height });
+
+  if (measured.widths.some(width => !(width > 0))) return null;
+
+  // Each line grows or shrinks until it is exactly as wide as the measure.
+  const scales = measured.widths.map(width => REFERENCE * (measured.measure / width));
+  const height = scales.reduce((total, scale) => total + scale * 1.02, 0);
+  // One scale over the whole block brings its height inside the box, and
+  // scaling every line by the same factor leaves them all still equal in width.
+  const fit = Math.min(1, measured.room / (height * (CANVAS.width / 100)));
+
+  return {
+    lineScales: scales.map(scale => Number((scale * fit).toFixed(2))),
+    titleScale: Number((Math.max(...scales) * fit).toFixed(2)),
+  };
+}
+
+/**
+ * The largest title that still fits its box, when it is set as one run of text
+ * rather than justified line by line.
  *
  * Binary search rather than a formula: how much room a title needs depends on
  * where the text wraps, which depends on the size — the two cannot be solved
@@ -331,9 +441,22 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
       deviceScaleFactor: 1,
     });
 
-    const { titleScale, singleLine } = await fitTitleScale(page, title, author, translator, resolved);
+    // An English title is set as a justified block; a CJK one wraps at one
+    // size, because equal-width lines would mean unequal glyphs.
+    const lines = setTitle(title, { maxLines: MAX_TITLE_LINES });
+    const justified = lines && lines.length > 1
+      ? await fitJustifiedTitle(page, title, author, translator, resolved, lines)
+      : null;
 
-    await page.setContent(buildCoverHtml(title, author, resolved, translator, titleScale, singleLine));
+    const fitted = justified
+      ? { titleScale: justified.titleScale, singleLine: false }
+      : await fitTitleScale(page, title, author, translator, resolved);
+    const { titleScale, singleLine } = fitted;
+    const extra = justified
+      ? { imprint: options.imprint, lines, lineScales: justified.lineScales }
+      : { imprint: options.imprint };
+
+    await page.setContent(buildCoverHtml(title, author, resolved, translator, titleScale, singleLine, extra));
     await page.evaluate(async (timeoutMs) => {
       await Promise.race([
         document.fonts.ready,
@@ -342,13 +465,21 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
     }, FONT_READY_TIMEOUT_MS);
 
     await page.screenshot({ path: outputPath, type: 'jpeg', quality: 88 });
-    return { titleScale, singleLine, layout: resolved };
+    return {
+      titleScale,
+      singleLine,
+      layout: resolved,
+      lines: justified ? lines : null,
+      lineScales: justified ? justified.lineScales : null,
+      imprint: options.imprint === undefined ? DEFAULT_IMPRINT : options.imprint,
+    };
   } finally {
     await browser.close();
   }
 }
 
 module.exports = {
+  DEFAULT_IMPRINT,
   buildCoverHtml,
   buildCoverPage,
   generateCover,

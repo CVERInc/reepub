@@ -395,6 +395,42 @@ async function main() {
     assert(false, 'buildCoverHtml is exported from src/cover-generator.js');
   }
 
+  section('Title setting: where a typesetter would break the line');
+  const titleSetting = tryRequire('./title-setting', 'setTitle, setEnglishTitle');
+  if (titleSetting && titleSetting.setEnglishTitle) {
+    const { setTitle, setEnglishTitle, WEAK_WORDS } = titleSetting;
+    // Real covers, and the rule has to reproduce all of them from one list of
+    // words rather than from any knowledge of what the titles mean.
+    const set = (t, max) => JSON.stringify(setEnglishTitle(t, max));
+    assert(set('The Book of Elon') === '["The Book of","Elon"]',
+      `a trailing preposition never starts a line (got ${set('The Book of Elon')})`);
+    assert(set('Zero to One') === '["Zero to","One"]',
+      `ZERO TO / ONE (got ${set('Zero to One')})`);
+    assert(set('Buy Back Your Time') === '["Buy","Back","Your","Time"]',
+      `a possessive is strong enough to hold its own line (got ${set('Buy Back Your Time')})`);
+    assert(set('Thinking, Fast and Slow') === '["Thinking,","Fast and","Slow"]',
+      `a conjunction joins the line before it (got ${set('Thinking, Fast and Slow')})`);
+    assert(set('Sapiens') === '["Sapiens"]', 'a one-word title is one line');
+
+    assert(!WEAK_WORDS.has('your') && !WEAK_WORDS.has('my'),
+      'possessives are not weak — "buy back YOUR time" is the message, not scaffolding');
+    assert(WEAK_WORDS.has('of') && WEAK_WORDS.has('the') && WEAK_WORDS.has('and'),
+      'articles, prepositions and conjunctions are');
+
+    // The first line is the exception: a title that begins "The" has to.
+    assert(setEnglishTitle('The Lean Startup')[0].startsWith('The'),
+      'the first line may open with a weak word, having nothing to join');
+
+    const long = setEnglishTitle('How to Win Friends and Influence People', 3);
+    assert(long.length === 3,
+      `a title too tall for the cover is merged back until it fits (got ${long.length} lines)`);
+
+    assert(setTitle('鹿鼎記') === null && setTitle('新刊が売り子のせいです') === null,
+      'a title with no word gaps is left to wrap at one size — equal-width lines would mean unequal glyphs');
+    assert(Array.isArray(setTitle('The Book of Elon')),
+      'an English title is set into lines');
+  }
+
   section('Cover generator: type is fitted, not fixed');
   if (cover && cover.buildCoverPage) {
     // The cover is HTML, so its type should behave like type: one size chosen
@@ -431,6 +467,29 @@ async function main() {
     assert(/xml:lang="zh-TW"/.test(page), 'the cover page declares the book\'s language');
     const hostilePage = cover.buildCoverPage({ title: 'A <B> & "C"', author: 'X & Y', layout: 'horizontal' });
     assert(isWellFormed(hostilePage), 'a hostile title cannot break the cover page');
+
+    // Justified: each line carries its own size so all of them end up the same
+    // width. The emphasis is a consequence — the short line is the big one.
+    const justified = cover.buildCoverHtml('The Book of Elon', 'Eric', 'horizontal', '', 12, false,
+      { lines: ['The Book of', 'Elon'], lineScales: [10.86, 26.82] });
+    assert(/class="line" style="font-size: 10\.86em">The Book of</.test(justified)
+        && /class="line" style="font-size: 26\.82em">Elon</.test(justified),
+      'each line of a justified title carries the size that makes it fill the measure');
+    assert(/text-transform:\s*uppercase/.test(justified),
+      'Latin display type is set in capitals — no descenders, one cap height, so a justified block squares up');
+
+    // The imprint is the binder's mark, and a tool that stamps every book with
+    // one name belongs to whoever set the name.
+    assert(/<p class="imprint">Reepub Editions<\/p>/.test(justified),
+      'the imprint is on the cover by default');
+    assert(/class="imprint">Custom Press</.test(
+      cover.buildCoverHtml('X', 'Y', 'horizontal', '', 12, false, { imprint: 'Custom Press' })),
+      'the imprint can be someone else\'s');
+    const unmarked = cover.buildCoverHtml('X', 'Y', 'horizontal', '', 12, false, { imprint: '' });
+    assert(/class="imprint"><\/p>/.test(unmarked) && /\.imprint:empty\s*\{[^}]*display:\s*none/.test(unmarked),
+      'and it can be nobody\'s, leaving no gap where it was');
+    assert(!/opacity\s*:/.test(unmarked),
+      'the imprint is small rather than faint — a third-opacity grey is simply absent on e-ink');
   } else if (cover) {
     assert(false, 'buildCoverPage is exported from src/cover-generator.js');
   }
