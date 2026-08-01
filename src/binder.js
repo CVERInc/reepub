@@ -39,6 +39,28 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const SUPPORTED_VERSIONS = ['2.0', '3.0'];
 const PAGE_DIRECTIONS = ['ltr', 'rtl', 'default'];
 
+// What a Kindle needs told about a right-to-left book, beyond the spine
+// attribute the format defines.
+//
+// page-progression-direction="rtl" alone is not enough for it. A book carrying
+// only that came out of the KFX conversion with no cover page and no detectable
+// table of contents: opening it landed on the first chapter, and the reader's
+// own cover entry led nowhere. Nothing about the cover page was at fault —
+// bisecting a real 54-chapter volume showed the same book losing its cover with
+// the attribute and keeping it without, and an SVG cover page, the technique
+// that exists precisely for readers that mishandle a full-page image, did not
+// rescue it either. The conversion goes wrong at the book level.
+//
+// The missing piece is this metadata, which is Amazon's and not part of EPUB.
+// The value is the counterintuitive part: 'vertical-rl' — the one that
+// describes what a vertical Chinese or Japanese book actually is — leaves the
+// cover exactly as broken, and 'horizontal-rl' restores it. Both were tried on
+// the device, one book each, everything else held identical. The text stays
+// vertical either way, because that comes from the stylesheet, not from here.
+//
+// Other readers ignore an unknown <meta name>, so this costs them nothing.
+const KINDLE_RTL_WRITING_MODE = 'horizontal-rl';
+
 // Only the raster/vector types that are core media types in BOTH EPUB 2 and
 // EPUB 3. Anything else (webp, avif, bmp…) needs a manifest fallback that no
 // caller here can supply, so it is rejected instead of shipped mislabelled.
@@ -309,6 +331,7 @@ function buildOpf(opts) {
     `    <dc:identifier id="${escapeAttr(bookId)}">urn:uuid:${escapeXML(uuid)}</dc:identifier>`,
     version === '3.0' ? `    <meta property="dcterms:modified">${escapeXML(requireModified(opts.modified))}</meta>` : '',
     version === '2.0' && coverImageId ? `    <meta name="cover" content="${escapeAttr(coverImageId)}"/>` : '',
+    pageDirection === 'rtl' ? `    <meta name="primary-writing-mode" content="${KINDLE_RTL_WRITING_MODE}"/>` : '',
   ].filter(Boolean).join('\n');
 
   const dirAttr = pageDirection ? ` page-progression-direction="${escapeAttr(pageDirection)}"` : '';

@@ -829,6 +829,19 @@ body { -epub-writing-mode: vertical-rl; }`);
         || (opf3.match(/<item\s[^>]*properties="[^"]*\bnav\b[^"]*"[^>]*id="([^"]+)"/) || [])[1];
       assert(!!navId && !new RegExp(`<itemref[^>]*idref="${navId}"`).test(opf3),
         'the navigation document is manifested but kept out of the reading order');
+
+      // A Kindle needs telling twice about a right-to-left book. Given only the
+      // spine attribute, its conversion produced a book with no cover page and
+      // no detectable contents — verified by bisecting a real volume, and not
+      // rescued by any change to the cover page itself.
+      const rtl = binder.buildOpf({ ...args3, pageDirection: 'rtl' });
+      assert(/<meta name="primary-writing-mode" content="horizontal-rl"\/>/.test(rtl),
+        'a right-to-left book also declares the writing mode Kindle reads');
+      assert(/page-progression-direction="rtl"/.test(rtl),
+        'and still carries the spine attribute the format defines');
+      const ltr = binder.buildOpf({ ...args3, pageDirection: 'ltr' });
+      assert(!/primary-writing-mode/.test(ltr),
+        'a left-to-right book says nothing about it');
       assert(typeof binder.buildNavDocument === 'function',
         'buildNavDocument is exported so the declared nav document can actually be written');
       if (typeof binder.buildNavDocument === 'function') {
