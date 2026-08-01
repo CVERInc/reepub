@@ -446,6 +446,36 @@ p { background: url(images/tile.png); }`;
     assert(shelfFit.titleScale >= 8,
       `type is fitted to the canvas rather than left at a caption size (${shelfFit.titleScale}% of canvas width)`);
 
+    // Centred by measurement, not by arithmetic. Every box in the layout sits
+    // on the canvas centre to the pixel, and the ink still did not: a CJK glyph
+    // set upright in a vertical column is not centred inside its own em, so the
+    // title landed some twenty pixels right of centre with every rectangle
+    // around it exactly where it belonged. Type is judged by where the ink is.
+    const inkCentre = async (file) => {
+      const { data, info } = await sharpLib(file).greyscale().raw()
+        .toBuffer({ resolveWithObject: true });
+      let min = Infinity;
+      let max = -1;
+      for (let y = Math.round(info.height * 0.10); y < Math.round(info.height * 0.78); y++) {
+        for (let x = 0; x < info.width; x++) {
+          if (data[y * info.width + x] > 110) {
+            if (x < min) min = x;
+            if (x > max) max = x;
+          }
+        }
+      }
+      return max < 0 ? null : (min + max) / 2 - info.width / 2;
+    };
+    const verticalOffset = await inkCentre(shelfCover);
+    assert(verticalOffset !== null && Math.abs(verticalOffset) <= 3,
+      `a vertical title's ink is centred on the canvas, not just its box (off by ${verticalOffset === null ? 'no ink' : verticalOffset.toFixed(1) + 'px'})`);
+
+    const wideCover = path.join(work, 'shelf-cover-h.jpeg');
+    await generateCover('The Book of Elon', 'Eric Jorgenson', wideCover, { pageDirection: 'ltr' });
+    const horizontalOffset = await inkCentre(wideCover);
+    assert(horizontalOffset !== null && Math.abs(horizontalOffset) <= 3,
+      `and so is a horizontal one (off by ${horizontalOffset === null ? 'no ink' : horizontalOffset.toFixed(1) + 'px'})`);
+
     // The shelf paints a progress badge, a selection tick and an overflow menu
     // over three corners. Anything that has to be read stays out of them.
     const corners = await Promise.all(

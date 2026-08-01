@@ -20,6 +20,7 @@
 // right. The composition stays out of all three corners.
 
 const { chromium } = require('playwright');
+const sharp = require('sharp');
 const { escapeXML, escapeAttr } = require('./epub-text');
 const { setTitle } = require('./title-setting');
 
@@ -117,7 +118,7 @@ function layoutForDirection(pageDirection) {
  * the same numbers describe the 1600px raster and a reader's page of whatever
  * size, and the fitted title scale means the same thing in both.
  */
-function coverStyles(titleScale, singleLine) {
+function coverStyles(titleScale, singleLine, opticalShift) {
   const scale = Number.isFinite(titleScale) && titleScale > 0 ? titleScale : DEFAULT_TITLE_SCALE;
   return `
     .reepub-cover {
@@ -248,6 +249,19 @@ function coverStyles(titleScale, singleLine) {
       align-items: center;
       justify-content: center;
     }
+    /* Optical centring. Every box in this layout is centred arithmetically —
+       measured in the DOM, the stage, the block and the title all sit on the
+       canvas centre to the pixel. The ink does not: a CJK glyph set upright in
+       a vertical column is not centred inside its own em, so a title measured
+       off the rendered image came out some twenty pixels right of centre while
+       every rectangle around it was exactly where it should be. Type is judged
+       by where the ink lands, so the ink is what gets centred, and the offset
+       is measured from a render rather than derived from metrics no font is
+       obliged to make honest. */
+    .reepub-cover .title-block {
+      transform: translateX(${Number.isFinite(opticalShift) ? -opticalShift : 0}em);
+    }
+
     /* The block is as tall as the stage so the title has a height to wrap
        against — a shrink-wrapped parent gives "max-height: 100%" nothing to
        resolve to, and a title that should run down three columns comes out as
@@ -334,6 +348,7 @@ function coverBody(title, author, translator, imprint, lines, lineScales) {
  * 'A <Book>' inject markup into the rendered cover.
  */
 function buildCoverHtml(title, author, layout = 'vertical', translator = '', titleScale, singleLine = false, extra = {}) {
+  const shift = extra.opticalShift;
   assertLayout(layout);
   const imprint = extra.imprint === undefined ? DEFAULT_IMPRINT : extra.imprint;
   return `<!DOCTYPE html>
@@ -344,13 +359,42 @@ function buildCoverHtml(title, author, layout = 'vertical', translator = '', tit
   html, body { margin: 0; padding: 0; background: ${COVER_GROUND}; }
   body { width: ${CANVAS.width}px; height: ${CANVAS.height}px; }
   .reepub-cover { font-size: ${CANVAS.width / 100}px; }
-${coverStyles(titleScale, singleLine)}
+${coverStyles(titleScale, singleLine, shift)}
 </style>
 </head>
 <body>
 <div class="reepub-cover layout-${layout}">${coverBody(title, author, translator, imprint, extra.lines, extra.lineScales)}</div>
 </body>
 </html>`;
+}
+
+/**
+ * How far the title's ink sits from the centre of the canvas, in the same em
+ * the stylesheet uses. Measured from a render with everything but the title
+ * hidden, because the question is where the ink is, and only a render knows.
+ */
+async function measureOpticalShift(page) {
+  await page.addStyleTag({ content: '.credits, .imprint { visibility: hidden !important; }' });
+  const shot = await page.screenshot({ type: 'png' });
+  const { data, info } = await sharp(shot).greyscale().raw().toBuffer({ resolveWithObject: true });
+
+  let min = Infinity;
+  let max = -1;
+  for (let y = 0; y < info.height; y++) {
+    const row = y * info.width;
+    for (let x = 0; x < info.width; x++) {
+      if (data[row + x] > 110) {
+        if (x < min) min = x;
+        if (x > max) max = x;
+      }
+    }
+  }
+  if (max < 0) return 0;
+
+  const offsetPx = (min + max) / 2 - info.width / 2;
+  // One em is one percent of the canvas width, which is what the stylesheet
+  // was written in.
+  return Number((offsetPx / (CANVAS.width / 100)).toFixed(3));
 }
 
 /**
@@ -524,11 +568,23 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
       ]);
     }, FONT_READY_TIMEOUT_MS);
 
+    // Centre the ink, then draw for real.
+    const opticalShift = await measureOpticalShift(page);
+    await page.setContent(buildCoverHtml(title, author, resolved, translator, titleScale, singleLine,
+      { ...extra, opticalShift }));
+    await page.evaluate(async (timeoutMs) => {
+      await Promise.race([
+        document.fonts.ready,
+        new Promise(resolve => setTimeout(resolve, timeoutMs)),
+      ]);
+    }, FONT_READY_TIMEOUT_MS);
+
     await page.screenshot({ path: outputPath, type: 'jpeg', quality: 88 });
     return {
       titleScale,
       singleLine,
       layout: resolved,
+      opticalShift,
       lines: justified ? lines : null,
       lineScales: justified ? justified.lineScales : null,
       imprint: options.imprint === undefined ? DEFAULT_IMPRINT : options.imprint,
