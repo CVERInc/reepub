@@ -243,9 +243,14 @@ function buildOpf(opts) {
   if (cssHref) manifest.add('css', cssHref, 'text/css');
 
   if (version === '3.0') {
-    // Exactly one navigation document, in the spine so it is reachable content
-    // rather than an orphan the reader can only get at through its own UI.
-    spine.push(manifest.add('nav', HREFS.nav, 'application/xhtml+xml', 'nav'));
+    // Exactly one navigation document, manifested but deliberately kept out of
+    // the spine. It is the reader's table of contents, not a page of the book:
+    // every reader surfaces it through its own navigation control, and putting
+    // it in the reading order gives a book that already carries a contents page
+    // two of them, one after the other. (linear="no" is not the alternative —
+    // EPUB requires non-linear content to be linked from somewhere linear, so
+    // it trades one problem for OPF-096.)
+    manifest.add('nav', HREFS.nav, 'application/xhtml+xml', 'nav');
   }
 
   for (const ch of chapters) {
@@ -317,7 +322,11 @@ ${metadata}
 ${manifest.render()}
   </manifest>
   <spine toc="${escapeAttr(ncxId)}"${dirAttr}>
-${spine.map(id => `    <itemref idref="${escapeAttr(id)}"/>`).join('\n')}
+${spine.map(entry => {
+    const id = typeof entry === 'string' ? entry : entry.id;
+    const linear = typeof entry === 'string' || entry.linear !== false ? '' : ' linear="no"';
+    return `    <itemref idref="${escapeAttr(id)}"${linear}/>`;
+  }).join('\n')}
   </spine>
 </package>`;
 }

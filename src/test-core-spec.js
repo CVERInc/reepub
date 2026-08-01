@@ -417,6 +417,45 @@ p { background: url(images/tile.png); }`;
     assert(mangled,
       'an unknown named entity fails loudly instead of being silently mangled (HTML parsing would turn &notarealentity; into ¬arealentity;)');
 
+    // ------------------------------------- recognising a contents page
+    // Whether a page is a table of contents is not a matter of opinion: the
+    // book's navigation already lists every chapter's label, so the question
+    // is whether this page's lines ARE those labels. On a real library the two
+    // populations do not overlap — contents pages score 100%, chapters 0–1%.
+    section('Contents page: recognised from the book\'s own navigation');
+
+    const { inspect, relink, normalize } = require('./contents-page');
+    const navLabels = new Map([
+      ['第一回縱橫鉤黨清流禍', '3.xhtml'],
+      ['第二回絕世奇事傳聞裏', '4.xhtml'],
+      ['第三回符來袖裏圍方解', '5.xhtml'],
+      ['後記', '6.xhtml'],
+    ]);
+    const tocDoc = XHTML('鹿鼎記',
+      '<div>鹿鼎記<br/>第一回　縱橫鉤黨清流禍<br/>第二回　絕世奇事傳聞裏<br/>第三回　符來袖裏圍方解<br/>後記</div>');
+    const chapterDoc = XHTML('第一回',
+      '<p>第一回　縱橫鉤黨清流禍</p><p>北風如刀，滿地冰霜。</p><p>江南近海濱的一條大路上。</p><p>兩排嶙峋的樹木。</p>');
+
+    const tocVerdict = inspect(tocDoc, navLabels);
+    const chapterVerdict = inspect(chapterDoc, navLabels);
+    assert(tocVerdict.isContents,
+      `a page whose lines are the navigation's own labels is a contents page (${Math.round(tocVerdict.share * 100)}% matched)`);
+    assert(!chapterVerdict.isContents,
+      `a chapter that opens with its own heading is NOT a contents page (${Math.round(chapterVerdict.share * 100)}% matched)`);
+
+    const relinked = relink(tocDoc, navLabels);
+    assert(relinked.linked === 4,
+      `every line the navigation knows becomes a link (linked ${relinked.linked})`);
+    assert(/<a href="3\.xhtml">第一回　縱橫鉤黨清流禍<\/a>/.test(relinked.xhtml),
+      'a chapter title links to the chapter the navigation gives it');
+    assert(!/<a[^>]*>鹿鼎記</.test(relinked.xhtml),
+      'a line the navigation does not list is left exactly as it was');
+    assert(isWellFormed(relinked.xhtml), 'the relinked page is still well-formed XML');
+
+    const already = relink(relinked.xhtml, navLabels);
+    assert(already.linked === 0,
+      'a contents page that already has links is left alone rather than nested inside itself');
+
     // ------------------------------------------------------ heal: one book
     // `reepub heal` repairs a single EPUB. It shares merge's engine, so the
     // repairs cannot drift apart, but it must NOT inherit merge's habit of
@@ -719,6 +758,15 @@ body { -epub-writing-mode: vertical-rl; }`);
       const navItems = [...opf3.matchAll(/<item\s[^>]*properties="[^"]*\bnav\b[^"]*"/g)];
       assert(navItems.length === 1,
         `an EPUB 3 package manifests exactly one properties="nav" item (got ${navItems.length})`);
+      // The navigation document is the reader's table of contents, not a page
+      // of the book. In the spine it becomes a second contents page for any
+      // book that already has one; linear="no" only trades that for OPF-096,
+      // because EPUB requires non-linear content to be linked from somewhere
+      // linear. Manifested and out of the spine is the answer.
+      const navId = (opf3.match(/<item\s[^>]*id="([^"]+)"[^>]*properties="[^"]*\bnav\b/) || [])[1]
+        || (opf3.match(/<item\s[^>]*properties="[^"]*\bnav\b[^"]*"[^>]*id="([^"]+)"/) || [])[1];
+      assert(!!navId && !new RegExp(`<itemref[^>]*idref="${navId}"`).test(opf3),
+        'the navigation document is manifested but kept out of the reading order');
       assert(typeof binder.buildNavDocument === 'function',
         'buildNavDocument is exported so the declared nav document can actually be written');
       if (typeof binder.buildNavDocument === 'function') {

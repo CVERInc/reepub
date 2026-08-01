@@ -31,6 +31,7 @@ const {
 } = require('./merge');
 const { validateEpub } = require('./validator');
 const { generateCover, layoutForDirection } = require('./cover-generator');
+const contentsPage = require('./contents-page');
 
 const HELP = `reepub heal — repair a broken EPUB.
 
@@ -212,18 +213,55 @@ async function main() {
     // The repaired book writes its cover to images/cover.jpeg, so that name is
     // claimed before any chapter image can be allocated it.
     if (coverImagePath) pool.reserve(COVER_IMAGE);
+    // Where each chapter title leads, in the repaired book. The same table
+    // identifies a contents page and gives its lines their links back.
+    //
+    // A title the navigation gives to two different documents cannot be
+    // resolved — this library has volumes whose navigation labels two separate
+    // pages with the book's own name — so it is dropped rather than linked to
+    // whichever one happened to be read last.
+    const labels = new Map();
+    const ambiguous = new Set();
+    for (const chapter of book.chapters) {
+      const href = book.hrefByPath.get(chapter.path);
+      if (!chapter.title || !href) continue;
+      const key = contentsPage.normalize(chapter.title);
+      if (labels.has(key) && labels.get(key) !== href) ambiguous.add(key);
+      labels.set(key, href);
+    }
+    for (const key of ambiguous) labels.delete(key);
+
     let bodiesRepaired = 0;
+    let contentsPages = 0;
+    let linksRestored = 0;
     const chapters = book.chapters.map(chapter => {
       const relocated = relocateChapter(chapter, book, pool);
       if (relocated.bodyRepaired) bodiesRepaired++;
+
+      let content = relocated.content;
+      if (contentsPage.inspect(content, labels).isContents) {
+        contentsPages++;
+        const restored = contentsPage.relink(content, labels);
+        content = restored.xhtml;
+        linksRestored += restored.linked;
+      }
+
       return {
         href: book.hrefByPath.get(chapter.path),
         title: relocated.title,
-        content: relocated.content,
+        content,
       };
     });
     if (bodiesRepaired > 0) {
       findings.push(`${bodiesRepaired} document${bodiesRepaired === 1 ? '' : 's'} had content sitting outside <body> → wrapped`);
+    }
+    if (linksRestored > 0) {
+      findings.push(`the book's own contents page listed ${linksRestored} chapters with nothing to tap → linked`);
+    }
+    // Reported, not removed. A second contents page is the publisher's
+    // duplicate, and deleting a page of someone's book is their call.
+    if (contentsPages > 1) {
+      findings.push(`note: this book carries ${contentsPages} contents pages of its own — left as they are`);
     }
 
     for (const note of findings) console.log(`  healed: ${note}`);
