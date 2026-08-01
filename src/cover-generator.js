@@ -47,17 +47,22 @@ const CANVAS = { width: 1600, height: 2260 };
 // it — JPEG, camera gamma and the room all exceed the difference being looked
 // for — which is why the instrument reports to an eye rather than to a script.
 //
-// E-ink shows sixteen levels of grey, so this is not really a colour match: it
-// is a match of the level the fill lands on, roughly one seventeenth of the
-// range wide. That is why the neighbouring values in the ladder were hard to
-// tell apart, and it is also why the exact hex matters less than it looks —
-// anything inside that level renders as the same grey.
+// E-ink shows sixteen levels of grey, and 255/15 is 17, so the levels land
+// exactly on the doubled hex digits: #000000, #111111, #222222 and so on. That
+// is why the first ladder's neighbours were so hard to tell apart — its steps
+// were finer than anything the display can draw.
+//
+// It also retired the first answer. #181818 is not on a level at all; it falls
+// between #111111 and #222222, and the device was quantising it. Read again
+// with the frontlight on — the condition these books are actually read in —
+// the fill sits one level below where that landed. So the value is #111111,
+// which is a level rather than a number between two of them.
 //
 // Matching it here rather than matching the screen's shape is what keeps this
 // independent of the cover's proportions: any aspect ratio bleeds into the
 // fill, so the shape of a cover stays a design decision instead of becoming a
 // device workaround.
-const COVER_GROUND = '#181818';
+const COVER_GROUND = '#111111';
 
 // document.fonts.ready can never settle if a face fails to load, so the wait is
 // raced against this ceiling — a missing font must degrade the cover, not hang
