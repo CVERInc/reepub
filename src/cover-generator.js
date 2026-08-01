@@ -30,6 +30,34 @@ const LAYOUTS = ['vertical', 'horizontal'];
 
 const CANVAS = { width: 1600, height: 2260 };
 
+// The grey a reader pads a cover with.
+//
+// A cover is almost never the shape of the screen it lands on, so the reader
+// fills the difference — on a Kindle lock screen, a band down each side of the
+// cover. That fill is not pure black, so a black cover meets it with a visible
+// seam, and the full-bleed lock screen a dark cover is drawn for does not
+// happen.
+//
+// Amazon publishes cover sizes and says nothing about the fill, so it was
+// measured off the device: scripts/calibrate-cover-ground.mjs builds a book
+// whose cover is a ladder of labelled greys, and the band whose edge vanishes
+// into the fill is the answer. Two people reading a Kindle lock screen agreed
+// on #181818, in both the light and the dark theme. A photograph cannot settle
+// it — JPEG, camera gamma and the room all exceed the difference being looked
+// for — which is why the instrument reports to an eye rather than to a script.
+//
+// E-ink shows sixteen levels of grey, so this is not really a colour match: it
+// is a match of the level the fill lands on, roughly one seventeenth of the
+// range wide. That is why the neighbouring values in the ladder were hard to
+// tell apart, and it is also why the exact hex matters less than it looks —
+// anything inside that level renders as the same grey.
+//
+// Matching it here rather than matching the screen's shape is what keeps this
+// independent of the cover's proportions: any aspect ratio bleeds into the
+// fill, so the shape of a cover stays a design decision instead of becoming a
+// device workaround.
+const COVER_GROUND = '#181818';
+
 // document.fonts.ready can never settle if a face fails to load, so the wait is
 // raced against this ceiling — a missing font must degrade the cover, not hang
 // the build.
@@ -103,7 +131,7 @@ function coverStyles(titleScale, singleLine) {
       height: ${(CANVAS.height / CANVAS.width) * 100}em;
       position: relative;
       overflow: hidden;
-      background: #000;
+      background: ${COVER_GROUND};
       color: #fff;
       /* One imprint, one voice, three scripts. A hand-written stack would set
          a Japanese title in Chinese letterforms, or send every CJK title
@@ -205,16 +233,37 @@ function coverStyles(titleScale, singleLine) {
     }
     .reepub-cover .translator:empty { display: none; }
 
-    /* VERTICAL — right-to-left books. Columns advance leftwards, so the title
-       takes the rightmost one and the credits the next along: the order on the
-       cover is the order they are read in. The credits sit at the foot of their
-       column, where a Chinese cover puts them — beside the title they read as an
-       annotation to it. */
+    /* The title block shrink-wraps the title, so centring the block centres
+       the title itself. The credits hang off it without taking part in that
+       centring. */
+    .reepub-cover .title-block { position: relative; }
+
+    /* VERTICAL — right-to-left books. The title takes the centre, and the
+       credits the column immediately to its left, at the foot: columns advance
+       leftwards, so that is the one read after it, and the foot is where a
+       Chinese cover puts a name. Being positioned against the title rather
+       than against the page, they follow it — a three-character title and an
+       eight-character one both keep their credits at the same distance. */
     .reepub-cover.layout-vertical .stage {
-      flex-direction: row-reverse;
       align-items: center;
       justify-content: center;
-      gap: 6em;
+    }
+    /* The block is as tall as the stage so the title has a height to wrap
+       against — a shrink-wrapped parent gives "max-height: 100%" nothing to
+       resolve to, and a title that should run down three columns comes out as
+       one very small one. It still shrink-wraps horizontally, which is what
+       keeps centring it the same as centring the title. */
+    .reepub-cover.layout-vertical .title-block {
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .reepub-cover.layout-vertical .credits {
+      position: absolute;
+      right: 100%;
+      bottom: 0;
+      margin-right: 4.5em;
     }
     /* The imprint stays horizontal on a vertical cover: it is not part of the
        text of the book, it is the binder's mark at the foot. */
@@ -232,7 +281,6 @@ function coverStyles(titleScale, singleLine) {
     }
     .reepub-cover.layout-vertical .credits {
       margin-top: 0;
-      align-self: flex-end;
       flex-direction: row-reverse;
       align-items: flex-start;
       gap: 2.4em;
@@ -260,12 +308,19 @@ function titleMarkup(title, lines, lineScales) {
   return `<h1 class="title title-justified">\n      ${set}\n    </h1>`;
 }
 
+// The credits live inside the block that wraps the title, not beside it, so
+// that they can be positioned against the title rather than against the page.
+// Centred as a pair, the title is pushed off-centre by half the width of the
+// credits — and on a Chinese cover the title is the thing that has to be in
+// the middle.
 function coverBody(title, author, translator, imprint, lines, lineScales) {
   return `<div class="stage">
-    ${titleMarkup(title, lines, lineScales)}
-    <div class="credits">
-      <p class="author">${escapeXML(author == null ? '' : author)}</p>
-      <p class="translator">${escapeXML(translator == null ? '' : translator)}</p>
+    <div class="title-block">
+      ${titleMarkup(title, lines, lineScales)}
+      <div class="credits">
+        <p class="author">${escapeXML(author == null ? '' : author)}</p>
+        <p class="translator">${escapeXML(translator == null ? '' : translator)}</p>
+      </div>
     </div>
   </div>
   <p class="imprint">${escapeXML(imprint == null ? '' : imprint)}</p>`;
@@ -286,7 +341,7 @@ function buildCoverHtml(title, author, layout = 'vertical', translator = '', tit
 <head>
 <meta charset="utf-8">
 <style>
-  html, body { margin: 0; padding: 0; background: #000; }
+  html, body { margin: 0; padding: 0; background: ${COVER_GROUND}; }
   body { width: ${CANVAS.width}px; height: ${CANVAS.height}px; }
   .reepub-cover { font-size: ${CANVAS.width / 100}px; }
 ${coverStyles(titleScale, singleLine)}
@@ -299,28 +354,33 @@ ${coverStyles(titleScale, singleLine)}
 }
 
 /**
- * The same design as the XHTML page bound into the book — real type, so it
- * stays sharp at any size, can be selected, and costs a few hundred bytes.
+ * The cover page bound into the book: the cover image, shown.
+ *
+ * The design is typography, but it is rasterised once and that raster serves
+ * both the shelf thumbnail and this page — one picture, two jobs. Setting the
+ * type again here as live HTML would look better in principle and worse in
+ * fact: a reader that converts EPUB to its own format supports far less CSS
+ * than the browser the raster was drawn in, so the page could break while the
+ * thumbnail beside it stayed perfect. And a preserved cover must be shown as
+ * the picture it is anyway — re-setting a scanned dust jacket as a title is
+ * drawing a new cover, which nobody asked for.
  */
-function buildCoverPage({ title, author, translator = '', layout = 'vertical', language = 'en', titleScale, singleLine = false, imprint, lines, lineScales } = {}) {
-  assertLayout(layout);
-  const mark = imprint === undefined ? DEFAULT_IMPRINT : imprint;
+function buildCoverImagePage({ imageHref, title = '', language = 'en' } = {}) {
   const lang = escapeAttr(language || 'en');
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
 <head>
   <meta charset="UTF-8" />
-  <title>${escapeXML(title == null ? '' : title)}</title>
+  <title>${escapeXML(title)}</title>
   <style>
-    html, body { margin: 0; padding: 0; background: #000; }
-    body { display: flex; align-items: center; justify-content: center;
-           min-height: 100vh; page-break-after: always; break-after: page; }
-${coverStyles(titleScale, singleLine)}
+    html, body { margin: 0; padding: 0; background: ${COVER_GROUND}; }
+    body { text-align: center; page-break-after: always; break-after: page; }
+    img { width: 100%; height: auto; display: block; margin: 0 auto; }
   </style>
 </head>
 <body epub:type="cover">
-  <div class="reepub-cover layout-${layout}">${coverBody(title, author, translator, mark, lines, lineScales)}</div>
+  <img src="${escapeAttr(imageHref)}" alt="${escapeAttr(title)}" />
 </body>
 </html>`;
 }
@@ -364,34 +424,6 @@ async function fitJustifiedTitle(page, title, author, translator, layout, lines)
     lineScales: scales.map(scale => Number((scale * fit).toFixed(2))),
     titleScale: Number((Math.max(...scales) * fit).toFixed(2)),
   };
-}
-
-/**
- * The cover page for a book whose cover is a picture reepub did not draw.
- *
- * Preserving someone's cover means preserving what they see when they open the
- * book, not only the thumbnail on the shelf. A typographic page here would
- * replace a scanned dust jacket with a setting of its title — which is a new
- * cover, however carefully made, and nobody asked for one.
- */
-function buildCoverImagePage({ imageHref, title = '', language = 'en' } = {}) {
-  const lang = escapeAttr(language || 'en');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
-<head>
-  <meta charset="UTF-8" />
-  <title>${escapeXML(title)}</title>
-  <style>
-    html, body { margin: 0; padding: 0; background: #000; }
-    body { text-align: center; page-break-after: always; break-after: page; }
-    img { width: 100%; height: auto; display: block; margin: 0 auto; }
-  </style>
-</head>
-<body epub:type="cover">
-  <img src="${escapeAttr(imageHref)}" alt="${escapeAttr(title)}" />
-</body>
-</html>`;
 }
 
 /**
@@ -507,10 +539,10 @@ async function generateCover(title, author, outputPath, layout = 'vertical') {
 }
 
 module.exports = {
+  COVER_GROUND,
   DEFAULT_IMPRINT,
   buildCoverHtml,
   buildCoverImagePage,
-  buildCoverPage,
   generateCover,
   layoutForDirection,
   CANVAS,

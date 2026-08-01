@@ -368,14 +368,20 @@ async function main() {
     assert(!/PingFang|Inter|Helvetica|Songti|Hiragino/.test(v),
       'no named family is hardcoded, so a machine missing one cannot change the look');
 
-    // The shelf renders the cover in greyscale at thumbnail size and draws its
-    // own furniture over the corners. A gradient collapses, a faint grey is
-    // simply absent, and a hairline is gone — so the ground is solid black and
-    // the ink is solid white, with nothing else to lose.
-    assert(/background:\s*#000\b/.test(v) && /color:\s*#fff\b/.test(v),
-      'the cover is solid black and solid white, which is all that survives greyscale e-ink');
+    // The shelf renders the cover in greyscale at thumbnail size. A gradient
+    // collapses, a faint grey is simply absent, and a hairline is gone — so
+    // the ink is solid white with nothing else to lose.
+    assert(/color:\s*#fff\b/.test(v),
+      'the ink is solid white, which is all that survives greyscale e-ink');
     assert(!/gradient|opacity:\s*0\.|rgba\(/.test(v),
       'no gradient, no partial opacity and no translucent ink — none of it reaches the device');
+    // The ground is not a shade someone liked: it is the grey a reader pads a
+    // cover with, measured off the device, so a cover of any proportion bleeds
+    // into that padding instead of meeting it with a seam.
+    assert(cover.COVER_GROUND && new RegExp(`background:\\s*${cover.COVER_GROUND}\\b`).test(v),
+      `the ground is the measured device fill (${cover.COVER_GROUND})`);
+    assert(!/background:\s*#000\b/.test(v),
+      'and it is deliberately not pure black — pure black is what left the seam');
 
     // 原作者為主、譯者為輔, on the cover as well as in the metadata.
     const credited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '某某 <譯>');
@@ -432,7 +438,7 @@ async function main() {
   }
 
   section('Cover generator: type is fitted, not fixed');
-  if (cover && cover.buildCoverPage) {
+  if (cover && cover.buildCoverImagePage) {
     // The cover is HTML, so its type should behave like type: one size chosen
     // for the title it actually has. A constant makes a two-character title
     // small and a fifteen-character one overflow.
@@ -453,19 +459,25 @@ async function main() {
     assert(/line-break:\s*strict/.test(big),
       'CJK closing punctuation is kept off the start of a line');
 
-    // The page bound into the book is the same design as the raster beside it.
-    const page = cover.buildCoverPage({
-      title: '鹿鼎記', author: '金庸', layout: 'vertical', language: 'zh-TW', titleScale: 30,
+    // One picture, two jobs: the raster the shelf shows is also the page the
+    // reader opens. Setting the type again as live HTML would look better in
+    // principle and worse in fact — a reader that converts EPUB to its own
+    // format supports far less CSS than the browser that drew the raster, so
+    // the page could break while the thumbnail beside it stayed perfect.
+    const page = cover.buildCoverImagePage({
+      imageHref: 'images/cover.jpeg', title: '鹿鼎記', language: 'zh-TW',
     });
     assert(/^<\?xml/.test(page) && /xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/.test(page),
       'the cover page is an XHTML document the container can carry');
     assert(isWellFormed(page), 'the cover page is well-formed XML');
-    assert(!/<img[\s>]/.test(page),
-      'the cover page is type, not a picture of type — it stays sharp at any size');
-    assert(sizeIn(page) === 30,
-      'the page and the raster are set from the same fitted measurement');
+    assert(/<img[^>]*src="images\/cover\.jpeg"/.test(page),
+      'the cover page shows the cover image');
+    assert(/epub:type="cover"/.test(page),
+      'and says it is the cover, so rebuilding the book does not file it as chapter one');
     assert(/xml:lang="zh-TW"/.test(page), 'the cover page declares the book\'s language');
-    const hostilePage = cover.buildCoverPage({ title: 'A <B> & "C"', author: 'X & Y', layout: 'horizontal' });
+    const hostilePage = cover.buildCoverImagePage({
+      imageHref: 'images/cover.jpeg', title: 'A <B> & "C"', language: 'en',
+    });
     assert(isWellFormed(hostilePage), 'a hostile title cannot break the cover page');
 
     // Justified: each line carries its own size so all of them end up the same
@@ -491,7 +503,7 @@ async function main() {
     assert(!/opacity\s*:/.test(unmarked),
       'the imprint is small rather than faint — a third-opacity grey is simply absent on e-ink');
   } else if (cover) {
-    assert(false, 'buildCoverPage is exported from src/cover-generator.js');
+    assert(false, "buildCoverImagePage is exported from src/cover-generator.js");
   }
 
   section('Cover generator: the layout follows the reading direction');

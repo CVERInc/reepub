@@ -31,7 +31,7 @@ const { execFileSync } = require('child_process');
 const { newUuid, buildOpf, buildNcx, buildNavDocument, HREFS } = require('./binder');
 const { escapeAttr } = require('./epub-text');
 const { validateEpub } = require('./validator');
-const { generateCover, buildCoverPage, buildCoverImagePage, layoutForDirection } = require('./cover-generator');
+const { generateCover, buildCoverImagePage } = require('./cover-generator');
 
 // EPUB 3, because it is the only version whose spine can carry
 // page-progression-direction: epubcheck rejects that attribute on an EPUB 2
@@ -684,23 +684,12 @@ function writeEpub(outputPath, bookDir, book) {
   book.pool.writeTo(oebps);
 
   if (coverImage) {
-    // A cover reepub drew is written as type — it stays sharp at any size,
-    // can be selected, and costs a few hundred bytes, and the raster beside it
-    // exists only because a shelf needs a thumbnail. A cover the book already
-    // had is shown as the picture it is: replacing it with a setting of the
-    // title would be drawing a new cover, which is a different request.
-    fs.writeFileSync(path.join(oebps, HREFS.coverPage), book.coverDrawn ? buildCoverPage({
-      title: book.title,
-      author: book.author,
-      translator: book.translator,
-      language: book.language,
-      layout: layoutForDirection(book.pageDirection),
-      titleScale: book.titleScale,
-      singleLine: book.singleLine,
-      lines: book.lines,
-      lineScales: book.lineScales,
-      imprint: book.imprint,
-    }) : buildCoverImagePage({
+    // One picture, two jobs: the raster the shelf shows is the page the
+    // reader opens. Setting the type again here as live HTML would look better
+    // in principle and worse in fact — a reader that converts EPUB to its own
+    // format supports far less CSS than the browser the raster was drawn in,
+    // so the page could break while the thumbnail beside it stayed perfect.
+    fs.writeFileSync(path.join(oebps, HREFS.coverPage), buildCoverImagePage({
       imageHref: coverImage,
       title: book.title,
       language: book.language,
