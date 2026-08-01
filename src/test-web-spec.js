@@ -367,6 +367,20 @@ async function main() {
       `the imprint face is the generic serif, which resolves per script (got ${JSON.stringify(faces[0])})`);
     assert(!/PingFang|Inter|Helvetica|Songti|Hiragino/.test(v),
       'no named family is hardcoded, so a machine missing one cannot change the look');
+
+    // 原作者為主、譯者為輔, on the cover as well as in the metadata.
+    const credited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '某某 <譯>');
+    assert(/class="translator"[^>]*>某某 &lt;譯&gt;</.test(credited),
+      'a translator is credited on the cover, escaped like every other untrusted field');
+    const sizeOf = (html, cls) => {
+      const rule = html.match(new RegExp(`\\.layout-vertical \\.${cls}\\s*\\{[^}]*\\}`));
+      return rule ? Number((rule[0].match(/font-size:\s*(\d+)px/) || [, 0])[1]) : 0;
+    };
+    assert(sizeOf(credited, 'translator') > 0 && sizeOf(credited, 'translator') < sizeOf(credited, 'author'),
+      `the translator is set smaller than the author (${sizeOf(credited, 'translator')}px vs ${sizeOf(credited, 'author')}px)`);
+    const uncredited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical');
+    assert(/class="translator"><\/div>/.test(uncredited) && /\.translator:empty\s*\{[^}]*display:\s*none/.test(uncredited),
+      'a book with no translator leaves no stray line on the cover');
   } else if (cover) {
     assert(false, 'buildCoverHtml is exported from src/cover-generator.js');
   }

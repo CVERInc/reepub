@@ -679,6 +679,7 @@ function writeEpub(outputPath, bookDir, book) {
     version: EPUB_VERSION,
     title: book.title,
     creator: book.author,
+    translator: book.translator,
     language: book.language,
     uuid,
     chapters,

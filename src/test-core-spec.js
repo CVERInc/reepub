@@ -599,6 +599,29 @@ body { -epub-writing-mode: vertical-rl; }`);
       assert(false, 'heal --cover wrote the book');
     }
 
+    // A book whose author and translator were conflated gets both credited, in
+    // the roles a cataloguer reads: creator/aut leads, contributor/trl follows.
+    const credited = path.join(work, 'credited.epub');
+    const creditRun = spawnSync(process.execPath, [path.join(__dirname, 'heal.js'),
+      '--cover', '--author', 'Eric Jorgenson', '--translator', 'Eugene',
+      coveredEpub, credited], { encoding: 'utf8' });
+    assert(creditRun.status === 0, `heal --translator succeeds (exit ${creditRun.status})`);
+    if (fs.existsSync(credited)) {
+      const cOpf = fs.readFileSync(
+        walk(unzipTo(credited, path.join(work, 'credited-x'))).find(f => f.endsWith('.opf')), 'utf8');
+      const creatorId = (cOpf.match(/<dc:creator[^>]*id="([^"]+)"[^>]*>\s*Eric Jorgenson\s*</) || [])[1];
+      const translatorId = (cOpf.match(/<dc:contributor[^>]*id="([^"]+)"[^>]*>\s*Eugene\s*</) || [])[1];
+      assert(!!creatorId && !!translatorId,
+        'the author is the creator and the translator a contributor');
+      assert(creatorId && new RegExp(`refines="#${creatorId}"[^>]*property="role"[^>]*>aut<`).test(cOpf),
+        'the aut relator refines the element carrying the author');
+      assert(translatorId && new RegExp(`refines="#${translatorId}"[^>]*property="role"[^>]*>trl<`).test(cOpf),
+        'the trl relator refines the element carrying the translator');
+      assert(validateEpub(credited).success === true, 'the credited book validates');
+    } else {
+      assert(false, 'heal --translator wrote the book');
+    }
+
     // Healing twice must equal healing once. A rebuilt book carries an EPUB 3
     // navigation document in its spine; reading that back as a chapter files
     // the table of contents inside the book, and then writes a fresh nav next

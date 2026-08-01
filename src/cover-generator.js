@@ -15,13 +15,14 @@ const FONT_READY_TIMEOUT_MS = 3000;
 // title/author are untrusted text and are escaped as HTML element content: raw
 // interpolation let a title like 'A <Book>' inject markup into the rendered
 // cover. An unrecognised layout is rejected rather than silently defaulted.
-function buildCoverHtml(title, author, layout = 'vertical') {
+function buildCoverHtml(title, author, layout = 'vertical', translator = '') {
   if (!LAYOUTS.includes(layout)) {
     throw new TypeError(
       `Unknown cover layout ${JSON.stringify(layout)} (expected one of: ${LAYOUTS.join(', ')})`);
   }
   const safeTitle = escapeXML(title == null ? '' : title);
   const safeAuthor = escapeXML(author == null ? '' : author);
+  const safeTranslator = escapeXML(translator == null ? '' : translator);
 
   return `
     <!DOCTYPE html>
@@ -120,6 +121,21 @@ function buildCoverHtml(title, author, layout = 'vertical') {
           text-indent: 12px;
           opacity: 0.62;
         }
+        /* 原作者為主、譯者為輔. The translator is set smaller and fainter, in
+           the next column along — which in vertical-rl is the one read after
+           the author, so the order on the cover is the order of the credit. */
+        .layout-vertical .translator {
+          position: absolute;
+          bottom: 232px;
+          left: 148px;
+          max-height: 900px;
+          writing-mode: vertical-rl;
+          text-orientation: upright;
+          font-size: 32px;
+          letter-spacing: 8px;
+          text-indent: 8px;
+          opacity: 0.4;
+        }
 
         /* HORIZONTAL — left-to-right books.
            Title in the upper third, author down at the foot, and the space
@@ -160,7 +176,19 @@ function buildCoverHtml(title, author, layout = 'vertical') {
           letter-spacing: 8px;
           opacity: 0.62;
         }
+        .layout-horizontal .translator {
+          position: absolute;
+          bottom: 190px;
+          left: 206px;
+          right: 206px;
+          font-size: 28px;
+          letter-spacing: 6px;
+          opacity: 0.4;
+        }
         .layout-vertical .rule { display: none; }
+        /* An absent translator leaves no gap: the author still sits at the foot
+           exactly where a single-credit cover puts it. */
+        .translator:empty { display: none; }
       </style>
     </head>
     <body class="layout-${layout}">
@@ -171,6 +199,7 @@ function buildCoverHtml(title, author, layout = 'vertical') {
         <div class="rule"></div>
       </div>
       <div class="author">${safeAuthor}</div>
+      <div class="translator">${safeTranslator}</div>
       <div class="publisher">Reepub Editions</div>
     </body>
     </html>
@@ -194,12 +223,14 @@ function layoutForDirection(pageDirection) {
 // path: a leaked chromium keeps the caller's event loop alive forever, so a
 // screenshot failure used to hang the whole process instead of rejecting.
 //
-// `layout` may be a layout name, or { pageDirection } to have it chosen.
+// `layout` may be a layout name, or { pageDirection, translator } to have the
+// layout chosen from how the book is read.
 async function generateCover(title, author, outputPath, layout = 'vertical') {
+  const options = layout && typeof layout === 'object' ? layout : {};
   const resolved = layout && typeof layout === 'object'
     ? layoutForDirection(layout.pageDirection)
     : layout;
-  const html = buildCoverHtml(title, author, resolved);
+  const html = buildCoverHtml(title, author, resolved, options.translator);
 
   const browser = await chromium.launch();
   try {

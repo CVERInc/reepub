@@ -40,6 +40,10 @@ Usage:
 Options:
   --title <title>     Override the title (default: the book's own)
   --author <author>   Override the author (default: the book's own)
+  --translator <name> Credit a translator. The original author leads and the
+                      translator follows: dc:creator with the aut relator and
+                      dc:contributor with trl, and on the cover a smaller line
+                      under the author.
   --cover             Draw a new cover, replacing whatever the book had.
                       The layout follows the book's reading direction:
                       right-to-left gets the vertical cover, everything else
@@ -68,11 +72,12 @@ function fail(message) {
 }
 
 function parseArgs(args) {
-  const options = { title: '', author: '', cover: false, validate: true, positional: [] };
+  const options = { title: '', author: '', translator: '', cover: false, validate: true, positional: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--title' && i + 1 < args.length) { options.title = args[++i]; continue; }
     if (arg === '--author' && i + 1 < args.length) { options.author = args[++i]; continue; }
+    if (arg === '--translator' && i + 1 < args.length) { options.translator = args[++i]; continue; }
     if (arg === '--cover') { options.cover = true; continue; }
     if (arg === '--no-validate') { options.validate = false; continue; }
     if (arg.startsWith('-')) fail(`unknown option ${arg} (see --help)`);
@@ -195,7 +200,7 @@ async function main() {
       console.log(`  drawing a new ${layout} cover…`);
       coverImagePath = path.join(scratch, COVER_IMAGE);
       await generateCover(coverTitle, coverAuthor, coverImagePath,
-        { pageDirection: book.pageDirection });
+        { pageDirection: book.pageDirection, translator: options.translator });
     }
 
     book.hrefByPath = new Map();
@@ -230,6 +235,7 @@ async function main() {
     writeEpub(outputPath, path.join(scratch, 'book-out'), {
       title: coverTitle,
       author: coverAuthor,
+      translator: options.translator,
       language: book.language || LANGUAGE_FALLBACK,
       pageDirection: book.pageDirection,
       chapters,
