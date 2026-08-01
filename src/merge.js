@@ -29,7 +29,7 @@ const crypto = require('crypto');
 const cheerio = require('cheerio');
 const { execFileSync } = require('child_process');
 const { newUuid, buildOpf, buildNcx, buildNavDocument, HREFS } = require('./binder');
-const { escapeAttr, serializeXml, stripPictographsFrom } = require('./epub-text');
+const { escapeAttr, serializeXml, decodeNonAsciiRefs, stripPictographsFrom } = require('./epub-text');
 const { validateEpub } = require('./validator');
 const { generateCover, buildCoverImagePage } = require('./cover-generator');
 
@@ -587,18 +587,17 @@ function repairMissingBody($) {
  * as a numeric reference. Attribute values therefore arrive raw and go back
  * escaped by hand, through the same escapeAttr the rest of the project uses.
  */
-function relocateChapter(chapter, volume, pool) {
+function relocateChapter(chapter, volume, pool, options = {}) {
   const raw = fs.readFileSync(path.join(volume.root, chapter.path), 'utf8');
-  const source = modernizeContentDocument(raw, `${volume.name} → ${chapter.path}`);
+  // Decoded before parsing so a pictograph written as &#x1f9e0; — plain ASCII
+  // on disk, invisible to any text-level check — is seen by the emoji handling
+  // below exactly like one written as itself.
+  const source = decodeNonAsciiRefs(
+    modernizeContentDocument(raw, `${volume.name} → ${chapter.path}`));
   const $ = cheerio.load(source, { xmlMode: true, decodeEntities: false });
   const baseDir = path.posix.dirname(chapter.path);
   let rewritten = repairMissingBody($);
   const bodyRepaired = rewritten;
-
-  // Emoji cost a book its cover and its whole table of contents on a Kindle.
-  // See stripPictographsFrom in epub-text.js for what was tested to land here.
-  const pictographsRemoved = stripPictographsFrom($);
-  if (pictographsRemoved > 0) rewritten = true;
 
   for (const el of $('*').toArray()) {
     for (const attr of REFERENCE_ATTRIBUTES) {
@@ -626,12 +625,32 @@ function relocateChapter(chapter, volume, pool) {
     }
   }
 
+  // Emoji cost a book its cover and its whole table of contents on a Kindle.
+  // See stripPictographsFrom in epub-text.js for what was tested to land
+  // here. Removal is the default; 'keep' is the caller's explicit choice to
+  // leave the book alone, and a glyph mapping redraws each pictograph as a
+  // monochrome image in place (emoji-glyphs.js). This runs after the
+  // reference walk above: a glyph's src is already its final pooled home, and
+  // the walk would otherwise refuse it as a file the source volume never had.
+  let pictographsRemoved = 0;
+  let pictographsInlined = 0;
+  const emoji = options.emoji || 'strip';
+  if (emoji === 'strip') {
+    pictographsRemoved = stripPictographsFrom($);
+    if (pictographsRemoved > 0) rewritten = true;
+  } else if (emoji !== 'keep') {
+    const { inlinePictographsIn } = require('./emoji-glyphs');
+    pictographsInlined = inlinePictographsIn($, emoji);
+    if (pictographsInlined > 0) rewritten = true;
+  }
+
   return {
     title: chapter.title || decodeXmlEntities($('head > title').first().text()).trim()
       || path.posix.basename(chapter.path),
     content: rewritten ? serializeXml($) : source,
     bodyRepaired,
     pictographsRemoved,
+    pictographsInlined,
   };
 }
 

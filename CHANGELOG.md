@@ -11,6 +11,24 @@ it had already produced were invalid, and the validator that was supposed to
 catch that had passed them. This release makes the guarantees real and adds the
 CI that keeps them that way. See [PRINCIPLES.md](PRINCIPLES.md).
 
+### Added — emoji as engravings (`heal --emoji glyph`)
+
+- For books where the emoji are content — a legend, a rating, a bullet —
+  stripping would delete meaning. Glyph mode redraws each pictograph in
+  place as monochrome line art: Noto Emoji's monochrome face, one engraving
+  per distinct character (content-addressed, so 77 emoji cost 18 small
+  images), set into the text at 1em so it scales with the reader's chosen
+  type size. The alt text is the character's CLDR name in the book's
+  language — 火箭 to a screen reader and to search, an image to the eye.
+  The pictograph codepoint itself — the thing that kills the cover — never
+  reaches the book. Assets are pinned and checksum-verified
+  (`scripts/fetch-emoji-assets.mjs`); a glyph the face cannot draw stops
+  the run rather than letting the colour font it exists to avoid stand in.
+- `--emoji strip|glyph|keep` on heal; strip remains the default.
+- The heal path now decodes numeric character references before its emoji
+  handling, so a pictograph written as `&#x1f9e0;` — plain ASCII on disk —
+  is treated exactly like one written as itself.
+
 ### Added — the native app catches up with the CLI
 
 - The macOS app now offers the emoji decision to the reader: a toggle

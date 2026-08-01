@@ -31,6 +31,7 @@ const {
 } = require('./merge');
 const { validateEpub } = require('./validator');
 const { generateCover, layoutForDirection } = require('./cover-generator');
+const { decodeNonAsciiRefs } = require('./epub-text');
 const contentsPage = require('./contents-page');
 
 const HELP = `reepub heal — repair a broken EPUB.
@@ -52,6 +53,15 @@ Options:
                       right-to-left gets the vertical cover, everything else
                       the horizontal one. Without this flag the book keeps the
                       cover it came with.
+  --emoji <mode>      What to do about pictographic emoji, which cost a book
+                      its cover and table of contents on a Kindle:
+                        strip  remove them (the default; a label an emoji
+                               decorated keeps its text)
+                        glyph  redraw each one in place as monochrome line
+                               art — an image 1em tall, with the character's
+                               name in the book's language as its alt text.
+                               Needs: node scripts/fetch-emoji-assets.mjs
+                        keep   leave them exactly as they are
   --no-validate       Skip validation of the repaired book
   -h, --help          Show this help
 
@@ -75,7 +85,7 @@ function fail(message) {
 }
 
 function parseArgs(args) {
-  const options = { title: '', author: '', translator: '', imprint: undefined, cover: false, validate: true, positional: [] };
+  const options = { title: '', author: '', translator: '', imprint: undefined, cover: false, emoji: 'strip', validate: true, positional: [] };
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === '--title' && i + 1 < args.length) { options.title = args[++i]; continue; }
@@ -83,6 +93,14 @@ function parseArgs(args) {
     if (arg === '--translator' && i + 1 < args.length) { options.translator = args[++i]; continue; }
     if (arg === '--imprint' && i + 1 < args.length) { options.imprint = args[++i]; continue; }
     if (arg === '--cover') { options.cover = true; continue; }
+    if (arg === '--emoji' && i + 1 < args.length) {
+      const mode = args[++i];
+      if (!['strip', 'glyph', 'keep'].includes(mode)) {
+        fail(`--emoji must be strip, glyph or keep (got "${mode}")`);
+      }
+      options.emoji = mode;
+      continue;
+    }
     if (arg === '--no-validate') { options.validate = false; continue; }
     if (arg.startsWith('-')) fail(`unknown option ${arg} (see --help)`);
     options.positional.push(arg);
@@ -243,14 +261,43 @@ async function main() {
     }
     for (const key of ambiguous) labels.delete(key);
 
+    // Glyph mode draws the whole book's pictographs up front — each distinct
+    // one once, engraved by emoji-glyphs.js and pooled like any image — so
+    // relocating a chapter is a lookup, not a render. Reading the raw files
+    // through decodeNonAsciiRefs means an emoji written as &#x1f9e0; is
+    // collected exactly like one written as itself.
+    let emojiOption = options.emoji;
+    let glyphsInlined = 0;
+    let glyphsDistinct = 0;
+    if (options.emoji === 'glyph') {
+      const glyphs = require('./emoji-glyphs');
+      const found = new Set();
+      for (const chapter of book.chapters) {
+        const raw = fs.readFileSync(path.join(book.root, chapter.path), 'utf8');
+        glyphs.collectPictographs(decodeNonAsciiRefs(raw), found);
+      }
+      if (found.size > 0) {
+        console.log(`  engraving ${found.size} emoji as monochrome glyphs…`);
+        const rendered = await glyphs.renderGlyphs(found);
+        const nameFor = glyphs.createNamer(book.language);
+        const hrefByChar = new Map();
+        for (const [char, absPath] of rendered) hrefByChar.set(char, pool.image(absPath));
+        glyphsDistinct = rendered.size;
+        emojiOption = { hrefFor: c => hrefByChar.get(c), altFor: nameFor };
+      } else {
+        emojiOption = 'keep';
+      }
+    }
+
     let bodiesRepaired = 0;
     let pictographs = 0;
     let contentsPages = 0;
     let linksRestored = 0;
     const chapters = book.chapters.map(chapter => {
-      const relocated = relocateChapter(chapter, book, pool);
+      const relocated = relocateChapter(chapter, book, pool, { emoji: emojiOption });
       if (relocated.bodyRepaired) bodiesRepaired++;
       pictographs += relocated.pictographsRemoved;
+      glyphsInlined += relocated.pictographsInlined;
 
       let content = relocated.content;
       if (contentsPage.inspect(content, labels).isContents) {
@@ -271,6 +318,9 @@ async function main() {
     }
     if (pictographs > 0) {
       findings.push(`${pictographs} emoji would have cost this book its cover and contents on a Kindle → removed`);
+    }
+    if (glyphsInlined > 0) {
+      findings.push(`${glyphsInlined} emoji redrawn in place as monochrome glyphs (${glyphsDistinct} engraving${glyphsDistinct === 1 ? '' : 's'}, named in the book's language)`);
     }
     if (linksRestored > 0) {
       findings.push(`the book's own contents page listed ${linksRestored} chapters with nothing to tap → linked`);

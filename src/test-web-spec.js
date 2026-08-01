@@ -226,6 +226,59 @@ async function main() {
     assert(isWellFormed(emoji.xhtml), 'and the chapter is still well-formed XML');
   }
 
+  section('Emoji glyphs: pictographs redrawn as engravings');
+  {
+    // The alternative to stripping, for books where the emoji are content:
+    // each pictograph becomes a monochrome image in place, named in the
+    // book's language. The transform is pure — rendering is Playwright's
+    // job and is exercised by the heal pipeline, not here.
+    const glyphs = require('./emoji-glyphs');
+    const cheerio = require('cheerio');
+
+    const found = glyphs.collectPictographs('🧠 概念 🚀🚀 與 𡒉 與 → 和 👁️');
+    assert(found.size === 3 && found.has('🧠') && found.has('🚀') && found.has('👁'),
+      `collect finds each distinct pictograph once, FE0F folded away (got ${[...found].join(' ')})`);
+    assert(![...found].some(c => c === '𡒉' || c === '→'),
+      'and neither CJK Extension B nor an arrow is ever collected');
+
+    const $ = cheerio.load(
+      '<html><body><p>🧠 概念圖解</p><p>火箭 🚀 升空,𡒉 與 → 不動</p>'
+      + '<p><img src="a.png" alt="🚀 圖"/></p></body></html>',
+      { xmlMode: true, decodeEntities: false });
+    const names = { '🧠': '腦', '🚀': '火箭' };
+    const count = glyphs.inlinePictographsIn($, {
+      hrefFor: c => `images/emoji-${c.codePointAt(0).toString(16)}.png`,
+      altFor: c => names[c],
+    });
+    const out = $.xml();
+    // The count is what the reader is told was redrawn. An emoji in an
+    // attribute is renamed, not redrawn, so it does not inflate the number.
+    assert(count === 2, `the count is the pictographs redrawn in text (got ${count})`);
+    assert(/<img class="reepub-emoji" src="images\/emoji-1f9e0\.png" alt="腦" style="height: 1em; vertical-align: -0\.125em;"\/>/.test(out),
+      'a pictograph becomes an image at text height, named in the book\'s language');
+    assert(!/[\u{1F000}-\u{1FAFF}]/u.test(out),
+      'no pictograph codepoint survives — the codepoint is what kills the cover');
+    assert(out.includes('𡒉 與 → 不動'),
+      'CJK Extension B and arrows pass through untouched');
+    assert(out.includes('🧠') === false && out.includes('概念圖解'),
+      'the text around the glyph is preserved in place');
+    assert(/alt="火箭 圖"/.test(out),
+      'an attribute cannot hold an image, so it holds the name instead');
+    assert(isWellFormed(out), 'and the document is still well-formed XML');
+
+    // The names themselves, when the pinned CLDR tables are in the cache.
+    if (glyphs.assetsPresent()) {
+      const zh = glyphs.createNamer('zh-TW');
+      assert(zh('🧠') === '腦' && zh('🚀') === '火箭',
+        'CLDR gives the glyph its Traditional-Chinese name');
+      assert(glyphs.createNamer('ja')('🚀') === 'ロケット'
+        && glyphs.createNamer('en')('🚀') === 'rocket',
+        'and the name follows the book\'s language');
+    } else {
+      console.log('  [SKIP] CLDR names — run: node scripts/fetch-emoji-assets.mjs');
+    }
+  }
+
   section('Sanitizer: sortChapterFiles');
   if (sanitizer && sanitizer.sortChapterFiles) {
     // Regression: Array.prototype.sort() is lexicographic, so ch10 sorted

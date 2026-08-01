@@ -219,6 +219,6 @@ function processPage(page) {
 
 module.exports = {
   escapeXML, escapeAttr, decodeNonAsciiRefs, serializeXml,
-  countPictographs, stripPictographs, stripPictographsFrom,
+  PICTOGRAPH_RUN, countPictographs, stripPictographs, stripPictographsFrom,
   joinText, processPage,
 };
