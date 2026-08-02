@@ -156,6 +156,7 @@
       "allowedDependencies": [],
       "sources": [
         "scripts/check-packages.mjs",
+        "scripts/check-ocr-contract.mjs",
         "scripts/check-release-readiness.mjs",
         "scripts/check-sync-markers.mjs",
         "scripts/fetch-emoji-assets.mjs",

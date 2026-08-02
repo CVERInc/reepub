@@ -47,6 +47,12 @@ jobs:
       - name: Build + self-test macOS app (SwiftPM)
         run: cd macos && swift build && swift run ReepubSelfTest
 
+      # Runs after the build because it drives the real binary. Nothing tested
+      # this wire until 2026-08-02: the extraction rewrote the producing side and
+      # every suite stayed green, because not one of them ran bin/scan-ocr.
+      - name: scan-ocr ↔ builder.js wire contract
+        run: node scripts/check-ocr-contract.mjs
+
       - name: Release readiness
         run: node scripts/check-release-readiness.mjs
 

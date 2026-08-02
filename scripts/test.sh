@@ -10,6 +10,7 @@ fi
 echo "→ epubcheck (official validator, cached)"; npm run epubcheck
 echo "→ test";  npm test --if-present
 echo "→ build (Swift OCR CLI — needs Xcode)"; npm run build --if-present
+echo "→ scan-ocr ↔ builder.js wire contract"; node scripts/check-ocr-contract.mjs
 echo "→ release readiness"; node scripts/check-release-readiness.mjs
 echo "→ sync markers (Node/Swift EPUB builders)"; node scripts/check-sync-markers.mjs
 echo "→ package ledger"; node scripts/check-packages.mjs
