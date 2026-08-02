@@ -6,7 +6,7 @@
 //
 // The whole transform happens on the parse tree and is serialized once, by
 // cheerio's XML renderer. No regex ever touches the output. The previous
-// pipeline (scripts/build-elon-from-web.js) did the opposite: it serialized a
+// pipeline (scripts/build-from-web.js) did the opposite: it serialized a
 // *selection* — which cheerio renders in HTML mode, leaving <br>, <hr> and
 // <img> unclosed — then tried to repair the string with five regexes,
 // including /<img([^>]+[^\/])>/ which mangles any tag whose attribute value
@@ -42,7 +42,7 @@ const BODY_BLOCK_ELEMENTS = new Set([
   'ol', 'p', 'pre', 'table', 'ul',
 ]);
 
-// The Book of Elon web edition -> reepub. Every value here has a rule in
+// One site's web edition -> reepub. Every value here has a rule in
 // src/styles/reepub-core.css; every site class missing from this table is
 // dropped, which is how fade-up / accent / cyan / container / content-section
 // stop shipping with no stylesheet behind them. Callers pass this in as

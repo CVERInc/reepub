@@ -1,5 +1,5 @@
 // Web edition -> EPUB: one parameterized pipeline for "a directory of chapter
-// HTML plus an images folder". It replaces scripts/build-elon-from-web.js, a
+// HTML plus an images folder". It replaces scripts/build-from-web.js, a
 // one-off that hardcoded its source directory, an output path inside one
 // person's iCloud, the book title, the author and one site's class map — and
 // that re-implemented sanitizing, image optimization and package assembly

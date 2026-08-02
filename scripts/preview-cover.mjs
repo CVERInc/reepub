@@ -12,7 +12,7 @@
 // what actually survives.
 //
 //   node scripts/preview-cover.mjs <book.epub> [out.png]
-//   node scripts/preview-cover.mjs --title 鹿鼎記 --author 金庸 [--rtl] [out.png]
+//   node scripts/preview-cover.mjs --title 西遊記 --author 吳承恩 [--rtl] [out.png]
 
 import { mkdtemp, rm, readFile, readdir, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";

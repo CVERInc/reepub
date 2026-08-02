@@ -9,11 +9,11 @@
 // Both halves of that are now structurally impossible — every value is a flag,
 // and buildWebEpub rejects rather than logs.
 //
-//   node scripts/build-elon-from-web.js \
-//     --src /tmp/book-of-elon-src \
-//     --out ~/Books/the-book-of-elon.epub \
-//     --title 'The Book of Elon' \
-//     --author 'Eric Jorgenson' \
+//   node scripts/build-from-web.js \
+//     --src /tmp/web-edition-src \
+//     --out ~/Books/my-book.epub \
+//     --title 'My Book' \
+//     --author 'The Author' \
 //     --lang zh-TW --cover horizontal
 
 const fs = require('fs');
@@ -21,7 +21,7 @@ const path = require('path');
 const { buildWebEpub } = require('../src/web-to-epub');
 const { DEFAULT_CLASS_MAP } = require('../src/sanitizer');
 
-const USAGE = `Usage: node scripts/build-elon-from-web.js --src <dir> --out <file.epub> --title <text> --lang <bcp47> [options]
+const USAGE = `Usage: node scripts/build-from-web.js --src <dir> --out <file.epub> --title <text> --lang <bcp47> [options]
 
   --src <dir>          site directory holding chapters/*.html and images/  (required)
   --out <file.epub>    where to write the book                             (required)
@@ -31,7 +31,7 @@ const USAGE = `Usage: node scripts/build-elon-from-web.js --src <dir> --out <fil
   --translator <name>  the translator       (dc:contributor, MARC 'trl')
   --cover <layout>     cover layout: horizontal | vertical  (default vertical)
   --class-map <file>   JSON { "siteClass": "reepubClass" } translation table;
-                       defaults to the Book of Elon web edition's table`;
+                       defaults to the table the built-in sanitizer ships with`;
 
 const FLAGS = {
   '--src': 'srcDir',
@@ -51,7 +51,7 @@ const FLAGS = {
 const REQUIRED_FLAGS = ['--src', '--out', '--title', '--lang'];
 
 function die(message) {
-  console.error(`build-elon-from-web: ${message}\n\n${USAGE}`);
+  console.error(`build-from-web: ${message}\n\n${USAGE}`);
   process.exit(2);
 }
 

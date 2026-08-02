@@ -61,12 +61,12 @@ function serializeXml($) {
 // whatever was stripped from the stylesheet, the images, the classes — did not.
 //
 // Only the pictographs go. The range stops short of U+20000, where CJK
-// Extension B lives: 鹿鼎記 carries 𡒉 twelve times and displays perfectly, so
-// "astral plane" is not the problem and a book must never lose a character of
-// its own language to this. Arrows, bullets, ticks and dashes stay too —
-// 賈伯斯傳 has 241 bullets and is fine — which matters because a diagram made
-// of boxes and arrows still reads as a diagram once the decorative icon in its
-// heading is gone.
+// Extension B lives: a volume in the test corpus carries 𡒉 twelve times and
+// displays perfectly, so "astral plane" is not the problem and a book must
+// never lose a character of its own language to this. Arrows, bullets, ticks
+// and dashes stay too — another carries 241 bullets and is fine — which
+// matters because a diagram made of boxes and arrows still reads as a diagram
+// once the decorative icon in its heading is gone.
 const PICTOGRAPH = /[\u{1F000}-\u{1FAFF}]\u{FE0F}?/u;
 const PICTOGRAPH_RUN = /\s*(?:[\u{1F000}-\u{1FAFF}]\u{FE0F}?)+\s*/gu;
 

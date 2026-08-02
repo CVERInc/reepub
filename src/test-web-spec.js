@@ -118,7 +118,7 @@ async function main() {
     assert(isWellFormed(xhtml),
       'output XHTML is well-formed XML (hostile & / < in the h1 must be re-escaped)');
 
-    // Regression: build-elon-from-web.js stripped <body> and never re-added it,
+    // Regression: build-from-web.js stripped <body> and never re-added it,
     // producing "element html incomplete; missing required element body"
     // (45 epubcheck errors across the shipped book).
     const bodyOpens = (xhtml.match(/<body[\s>]/g) || []).length;
@@ -315,7 +315,7 @@ async function main() {
     const uuid = '123e4567-e89b-42d3-a456-426614174000';
     const opf = binder.buildOpf({
       title: 'AT&T <Deal>',
-      creator: 'Eric Jorgenson',
+      creator: 'Charles Dickens',
       translator: 'Eugene',
       language: 'zh-TW',
       uuid,
@@ -332,7 +332,7 @@ async function main() {
 
     assert(isWellFormed(opf), 'OPF is well-formed XML with a hostile title');
     assert(opf.includes('AT&amp;T &lt;Deal&gt;'), 'dc:title is XML-escaped');
-    assert(/<dc:creator[^>]*opf:role="aut"[^>]*>Eric Jorgenson<\/dc:creator>/.test(opf),
+    assert(/<dc:creator[^>]*opf:role="aut"[^>]*>Charles Dickens<\/dc:creator>/.test(opf),
       'original author is dc:creator with opf:role="aut"');
     assert(/opf:role="trl"[^>]*>Eugene</.test(opf),
       'translator is credited with opf:role="trl" (原作者為主、譯者為輔)');
@@ -484,9 +484,9 @@ async function main() {
     // different looks; reepub sets English, Japanese and Traditional Chinese
     // in one voice and lets the platform supply each script's own letterforms.
     const faces = [
-      cover.buildCoverHtml('The Book of Elon', 'Eric Jorgenson', 'horizontal'),
-      cover.buildCoverHtml('鹿鼎記', '金庸', 'horizontal'),
-      cover.buildCoverHtml('新刊が売り子のせいです', '道満晴明', 'horizontal'),
+      cover.buildCoverHtml('A Tale of Two Cities', 'Charles Dickens', 'horizontal'),
+      cover.buildCoverHtml('西遊記', '吳承恩', 'horizontal'),
+      cover.buildCoverHtml('吾輩は猫である', '夏目漱石', 'horizontal'),
     ].map(html => (html.match(/font-family:\s*([^;]+);/) || [, ''])[1].trim());
     assert(faces.every(f => f && f === faces[0]),
       `the typeface is the same for en, ja and zh-TW titles (got ${JSON.stringify(faces)})`);
@@ -511,7 +511,7 @@ async function main() {
       'and it is deliberately not pure black — pure black is what left the seam');
 
     // 原作者為主、譯者為輔, on the cover as well as in the metadata.
-    const credited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '某某 <譯>');
+    const credited = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical', '某某 <譯>');
     assert(/class="translator"[^>]*>某某 &lt;譯&gt;</.test(credited),
       'a translator is credited on the cover, escaped like every other untrusted field');
     const sizeOf = (html, cls) => {
@@ -521,7 +521,7 @@ async function main() {
     assert(sizeOf(credited, 'translator') > 0 && sizeOf(credited, 'author') > 0
       && sizeOf(credited, 'translator') < sizeOf(credited, 'author'),
       `the translator is set smaller than the author (${sizeOf(credited, 'translator')}em vs ${sizeOf(credited, 'author')}em)`);
-    const uncredited = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical');
+    const uncredited = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical');
     assert(/class="translator"><\/p>/.test(uncredited) && /\.translator:empty\s*\{[^}]*display:\s*none/.test(uncredited),
       'a book with no translator leaves no stray line on the cover');
   } else if (cover) {
@@ -558,9 +558,9 @@ async function main() {
     assert(long.length === 3,
       `a title too tall for the cover is merged back until it fits (got ${long.length} lines)`);
 
-    assert(setTitle('鹿鼎記') === null && setTitle('新刊が売り子のせいです') === null,
+    assert(setTitle('西遊記') === null && setTitle('吾輩は猫である') === null,
       'a title with no word gaps is left to wrap at one size — equal-width lines would mean unequal glyphs');
-    assert(Array.isArray(setTitle('The Book of Elon')),
+    assert(Array.isArray(setTitle('A Tale of Two Cities')),
       'an English title is set into lines');
   }
 
@@ -569,8 +569,8 @@ async function main() {
     // The cover is HTML, so its type should behave like type: one size chosen
     // for the title it actually has. A constant makes a two-character title
     // small and a fifteen-character one overflow.
-    const big = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '', 30);
-    const small = cover.buildCoverHtml('鹿鼎記', '金庸', 'vertical', '', 8);
+    const big = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical', '', 30);
+    const small = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical', '', 8);
     const sizeIn = html => Number((html.match(/\.title\s*\{[^}]*font-size:\s*([\d.]+)em/) || [, 0])[1]);
     assert(sizeIn(big) === 30 && sizeIn(small) === 8,
       `the fitted scale reaches the stylesheet (got ${sizeIn(big)}em and ${sizeIn(small)}em)`);
@@ -579,9 +579,9 @@ async function main() {
 
     // Wrapping splits a name across lines and no tool without a dictionary
     // knows where a name ends, so it has to earn its keep.
-    assert(/text-wrap:\s*nowrap/.test(cover.buildCoverHtml('賈伯斯傳', '華特', 'horizontal', '', 19, true)),
+    assert(/text-wrap:\s*nowrap/.test(cover.buildCoverHtml('老殘遊記', '劉鶚', 'horizontal', '', 19, true)),
       'a title kept on one line says so in the stylesheet');
-    assert(/text-wrap:\s*balance/.test(cover.buildCoverHtml('The Book of Elon', 'Eric', 'horizontal', '', 22, false)),
+    assert(/text-wrap:\s*balance/.test(cover.buildCoverHtml('A Tale of Two Cities', 'Charles', 'horizontal', '', 22, false)),
       'a wrapping title asks for balanced lines rather than a stray last word');
     assert(/line-break:\s*strict/.test(big),
       'CJK closing punctuation is kept off the start of a line');
@@ -592,7 +592,7 @@ async function main() {
     // format supports far less CSS than the browser that drew the raster, so
     // the page could break while the thumbnail beside it stayed perfect.
     const page = cover.buildCoverImagePage({
-      imageHref: 'images/cover.jpeg', title: '鹿鼎記', language: 'zh-TW',
+      imageHref: 'images/cover.jpeg', title: '西遊記', language: 'zh-TW',
     });
     assert(/^<\?xml/.test(page) && /xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/.test(page),
       'the cover page is an XHTML document the container can carry');

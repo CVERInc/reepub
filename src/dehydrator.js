@@ -1,5 +1,5 @@
 // The single image-optimization module for the reepub pipelines. Previously
-// this lived twice (scripts/optimize.js and scripts/build-elon-from-web.js) and
+// this lived twice (scripts/optimize.js and scripts/build-from-web.js) and
 // the copies had already drifted: one kept the re-encode only when it shrank,
 // the other overwrote unconditionally and so could make a book heavier.
 //

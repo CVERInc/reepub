@@ -43,9 +43,9 @@ difference is ownership:
   to the official [epubcheck](https://github.com/w3c/epubcheck) at
   **0 errors / 0 warnings**.
 - **Repairs the books you already have** — `reepub heal` fixes a broken EPUB and
-  tells you exactly what it changed. Five real Traditional-Chinese volumes
-  carrying four epubcheck errors each came out at zero, with every chapter and
-  their vertical right-to-left layout intact. See [Healing](#healing-broken-books).
+  tells you exactly what it changed. Vertical right-to-left CJK volumes carrying
+  four epubcheck errors each came out at zero, with every chapter and their
+  reading direction intact. See [Healing](#healing-broken-books).
 - **MIT-licensed**, self-contained, forkable, free forever.
 
 ## Features
@@ -139,21 +139,22 @@ keep it.
 
 Ebooks in the wild are broken in ways their owners never see: a forgiving reader
 shows the book anyway, so the damage only surfaces when something strict refuses
-it. Every volume of a real Traditional-Chinese library we tested carries four
-epubcheck errors of its own.
+it. The hardest case is a vertical, right-to-left CJK volume: the reading
+direction it needs is an EPUB 3 attribute, so a book packaged as EPUB 2 has to
+choose between validating and opening the right way round. `heal` gives it both.
 
 ```bash
-node src/heal.js "金庸 - 鹿鼎記.epub" 鹿鼎記-healed.epub
+node src/heal.js broken.epub healed.epub
 ```
 
 ```
-Healing 金庸 - 鹿鼎記.epub → 鹿鼎記-healed.epub
-  鹿鼎記 — 55 documents
+Healing broken.epub → healed.epub
+  西遊記 — 55 documents
   healed: EPUB 2.0 spine carried page-progression-direction → rebuilt as EPUB 3.0
   healed: table of contents identifier disagreed with the package → unified
   healed: 55 chapters declared the XHTML 1.1 doctype → <!DOCTYPE html>
   healed: dropped @font-face "DroidFont", serif, sans-serif → res:///system/fonts/DroidSansFallback.ttf cannot load in an EPUB
-  ✓ 鹿鼎記-healed.epub (1641 KB)
+  ✓ healed.epub (1641 KB)
   ✓ EPUB valid
 ```
 

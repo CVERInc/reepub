@@ -58,8 +58,9 @@ CI that keeps them that way. See [PRINCIPLES.md](PRINCIPLES.md).
 
   Only pictographs go. Arrows, bullets and ticks stay, so a diagram built from
   boxes and arrows still reads as one, and the range stops short of U+20000
-  where CJK Extension B lives — 鹿鼎記 carries 𡒉 twelve times and displays
-  perfectly, so no book loses a character of its own language to this.
+  where CJK Extension B lives — a volume in the test corpus carries 𡒉 twelve
+  times and displays perfectly, so no book loses a character of its own
+  language to this.
 
 - Every non-ASCII character was written as a numeric reference on serialisation,
   so a Chinese chapter left the pipeline with 1227 escapes and not one readable

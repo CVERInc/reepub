@@ -1,7 +1,7 @@
 // EPUB package assembly — the single place in this project where a <package>
 // document, an NCX or an EPUB 3 navigation document is emitted.
 //
-// Three hand-rolled templates (builder.js, merge.js, scripts/build-elon-from-web.js)
+// Three hand-rolled templates (builder.js, merge.js, scripts/build-from-web.js)
 // drifted apart into different EPUB versions, different escaping (one of them
 // had none at all), invalid identifiers and an NCX whose dtb:uid was minted by
 // a second randomUUID() call and so never matched the OPF. Callers now describe

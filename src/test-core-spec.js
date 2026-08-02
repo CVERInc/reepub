@@ -427,7 +427,7 @@ p { background: url(images/tile.png); }`;
     const { generateCover } = require('./cover-generator');
     const sharpLib = require('sharp');
     const shelfCover = path.join(work, 'shelf-cover.jpeg');
-    const shelfFit = await generateCover('鹿鼎記', '金庸', shelfCover, { pageDirection: 'rtl' });
+    const shelfFit = await generateCover('西遊記', '吳承恩', shelfCover, { pageDirection: 'rtl' });
 
     const tile = await sharpLib(shelfCover).greyscale().resize({ width: 230 }).toBuffer();
     const tone = (await sharpLib(tile).stats()).channels[0];
@@ -478,7 +478,7 @@ p { background: url(images/tile.png); }`;
       `a vertical title's ink is centred on the canvas, not just its box (off by ${verticalOffset === null ? 'no ink' : verticalOffset.toFixed(1) + 'px'})`);
 
     const wideCover = path.join(work, 'shelf-cover-h.jpeg');
-    await generateCover('The Book of Elon', 'Eric Jorgenson', wideCover, { pageDirection: 'ltr' });
+    await generateCover('A Tale of Two Cities', 'Charles Dickens', wideCover, { pageDirection: 'ltr' });
     const horizontalOffset = await inkCentre(wideCover);
     assert(horizontalOffset !== null && Math.abs(horizontalOffset) <= 8,
       `and so is a horizontal one (off by ${horizontalOffset === null ? 'no ink' : horizontalOffset.toFixed(1) + 'px'})`);
@@ -515,15 +515,15 @@ p { background: url(images/tile.png); }`;
 
     const { inspect, relink, normalize } = require('./contents-page');
     const navLabels = new Map([
-      ['第一回縱橫鉤黨清流禍', '3.xhtml'],
-      ['第二回絕世奇事傳聞裏', '4.xhtml'],
-      ['第三回符來袖裏圍方解', '5.xhtml'],
+      ['第一回靈根育孕源流出', '3.xhtml'],
+      ['第二回悟徹菩提真妙理', '4.xhtml'],
+      ['第三回四海千山皆拱伏', '5.xhtml'],
       ['後記', '6.xhtml'],
     ]);
-    const tocDoc = XHTML('鹿鼎記',
-      '<div>鹿鼎記<br/>第一回　縱橫鉤黨清流禍<br/>第二回　絕世奇事傳聞裏<br/>第三回　符來袖裏圍方解<br/>後記</div>');
+    const tocDoc = XHTML('西遊記',
+      '<div>西遊記<br/>第一回　靈根育孕源流出<br/>第二回　悟徹菩提真妙理<br/>第三回　四海千山皆拱伏<br/>後記</div>');
     const chapterDoc = XHTML('第一回',
-      '<p>第一回　縱橫鉤黨清流禍</p><p>北風如刀，滿地冰霜。</p><p>江南近海濱的一條大路上。</p><p>兩排嶙峋的樹木。</p>');
+      '<p>第一回　靈根育孕源流出</p><p>蓋聞天地之數，有十二萬九千六百歲為一元。</p><p>將一元分為十二會。</p><p>每會該一萬八百歲。</p>');
 
     const tocVerdict = inspect(tocDoc, navLabels);
     const chapterVerdict = inspect(chapterDoc, navLabels);
@@ -535,9 +535,9 @@ p { background: url(images/tile.png); }`;
     const relinked = relink(tocDoc, navLabels);
     assert(relinked.linked === 4,
       `every line the navigation knows becomes a link (linked ${relinked.linked})`);
-    assert(/<a href="3\.xhtml">第一回　縱橫鉤黨清流禍<\/a>/.test(relinked.xhtml),
+    assert(/<a href="3\.xhtml">第一回　靈根育孕源流出<\/a>/.test(relinked.xhtml),
       'a chapter title links to the chapter the navigation gives it');
-    assert(!/<a[^>]*>鹿鼎記</.test(relinked.xhtml),
+    assert(!/<a[^>]*>西遊記</.test(relinked.xhtml),
       'a line the navigation does not list is left exactly as it was');
     assert(isWellFormed(relinked.xhtml), 'the relinked page is still well-formed XML');
 
@@ -750,13 +750,13 @@ body { -epub-writing-mode: vertical-rl; }`);
     // the roles a cataloguer reads: creator/aut leads, contributor/trl follows.
     const credited = path.join(work, 'credited.epub');
     const creditRun = spawnSync(process.execPath, [path.join(__dirname, 'heal.js'),
-      '--cover', '--author', 'Eric Jorgenson', '--translator', 'Eugene',
+      '--cover', '--author', 'Charles Dickens', '--translator', 'Eugene',
       coveredEpub, credited], { encoding: 'utf8' });
     assert(creditRun.status === 0, `heal --translator succeeds (exit ${creditRun.status})`);
     if (fs.existsSync(credited)) {
       const cOpf = fs.readFileSync(
         walk(unzipTo(credited, path.join(work, 'credited-x'))).find(f => f.endsWith('.opf')), 'utf8');
-      const creatorId = (cOpf.match(/<dc:creator[^>]*id="([^"]+)"[^>]*>\s*Eric Jorgenson\s*</) || [])[1];
+      const creatorId = (cOpf.match(/<dc:creator[^>]*id="([^"]+)"[^>]*>\s*Charles Dickens\s*</) || [])[1];
       const translatorId = (cOpf.match(/<dc:contributor[^>]*id="([^"]+)"[^>]*>\s*Eugene\s*</) || [])[1];
       assert(!!creatorId && !!translatorId,
         'the author is the creator and the translator a contributor');
@@ -906,7 +906,7 @@ body { -epub-writing-mode: vertical-rl; }`);
     section('Binder: package assembly lives in one place');
     // Regression: three separate hand-rolled <package> templates drifted apart
     // (EPUB 2 vs 3, different escaping, different cover wiring).
-    const assemblers = ['src/builder.js', 'src/merge.js', 'scripts/build-elon-from-web.js']
+    const assemblers = ['src/builder.js', 'src/merge.js', 'scripts/build-from-web.js']
       .filter(rel => fs.existsSync(path.join(REPO, rel)))
       .filter(rel => /<package[\s>]/.test(fs.readFileSync(path.join(REPO, rel), 'utf8')));
     assert(assemblers.length === 0,
