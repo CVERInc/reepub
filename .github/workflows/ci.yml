@@ -13,9 +13,12 @@ jobs:
   ci:
     runs-on: macos-latest # reepub is darwin-only (native Vision OCR / Swift)
     steps:
-      - uses: actions/checkout@v4
+      # v5 = the Node 24 action runtime. v4 runs on Node 20, which GitHub has
+      # marked for removal; a deprecated runtime does not fail, it warns until
+      # the day it stops. Siblings (signet/clikae/andross/shelfseer) are on v5.
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
