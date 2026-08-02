@@ -10,6 +10,11 @@ fi
 echo "→ epubcheck (official validator, cached)"; npm run epubcheck
 echo "→ test";  npm test --if-present
 echo "→ build (Swift OCR CLI — needs Xcode)"; npm run build --if-present
+# The Swift assembler's own suite. CI has always run this (ci.yml), and this file
+# has always claimed to run the same checks — but it did not, so a local ALL GREEN
+# said nothing about half of PRINCIPLES §7, whose emoji rule is asserted on both
+# sides of the language border and can therefore break on one side alone.
+echo "→ Swift EPUB builder self-test (needs Xcode)"; (cd macos && swift build && swift run ReepubSelfTest)
 echo "→ scan-ocr ↔ builder.js wire contract"; node scripts/check-ocr-contract.mjs
 echo "→ release readiness"; node scripts/check-release-readiness.mjs
 echo "→ sync markers (Node/Swift EPUB builders)"; node scripts/check-sync-markers.mjs
