@@ -909,8 +909,11 @@ body { -epub-writing-mode: vertical-rl; }`);
     const assemblers = ['src/builder.js', 'src/merge.js', 'scripts/build-from-web.js']
       .filter(rel => fs.existsSync(path.join(REPO, rel)))
       .filter(rel => /<package[\s>]/.test(fs.readFileSync(path.join(REPO, rel), 'utf8')));
+    // Scope: this reads .js only. EpubBuilder.swift assembles its own package
+    // document and this check has never seen it — say so here rather than let a
+    // green line imply a boundary that stops at the language border.
     assert(assemblers.length === 0,
-      `no module hand-rolls its own <package> template outside src/binder.js (offenders: ${JSON.stringify(assemblers)})`);
+      `no NODE module hand-rolls its own <package> template outside src/binder.js — the Swift builder is a known exception, see HANDOFF.md (offenders: ${JSON.stringify(assemblers)})`);
 
     // -------------------------------------------------------- optimize.js
     section('Optimizer: content root discovery');

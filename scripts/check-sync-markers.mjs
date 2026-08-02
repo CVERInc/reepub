@@ -1,7 +1,15 @@
 #!/usr/bin/env node
-// check-sync-markers.mjs — CI guard over the two EPUB builders that must turn the
-// same PDF into the same book: the Node CLI (src/builder.js + src/epub-text.js)
-// and the native app (macos/Sources/ReepubCore/EpubBuilder.swift).
+// check-sync-markers.mjs — CI guard over the shared HEURISTICS of the two EPUB
+// builders: the Node CLI (src/builder.js + src/epub-text.js) and the native app
+// (macos/Sources/ReepubCore/EpubBuilder.swift).
+//
+// What it does NOT establish: that the two produce the same book. They do not.
+// The app assembles its own package document, NCX and navigation document, and
+// its cover is page one wrapped as an image where the CLI typesets one through a
+// browser — so the two diverge by construction, not by drift. This file compares
+// the constants that exist on BOTH sides; passing it means those agree, and
+// nothing wider. See HANDOFF.md for the inventory and the decision that ends the
+// split.
 //
 // It checks two different things:
 //

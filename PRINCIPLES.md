@@ -44,8 +44,16 @@ requires **0 fatals / 0 errors / 0 warnings**.
 
 ## 3. One assembly path
 
-Every package document, NCX and navigation document in this project is built by
-`src/binder.js`. Nothing else may emit one.
+Every package document, NCX and navigation document **on the Node side** is built
+by `src/binder.js`. Nothing else there may emit one.
+
+The native app is the acknowledged exception, and stating it is the point:
+`macos/Sources/ReepubCore/EpubBuilder.swift` assembles its own package document,
+NCX and navigation document. The guard in `src/test-core-spec.js` reads `.js`
+files only, so it has never once seen that half — a gate nobody has watched fail
+is not evidence of a boundary. Until the assembly core moves to Swift (decided
+2026-08-02, see HANDOFF.md), this section describes one language, not the
+project.
 
 This is not tidiness. reepub previously had three hand-rolled `<package>`
 templates that drifted apart: one escaped its inputs and two did not, one
@@ -66,8 +74,8 @@ the OCR heuristics it keeps in step with the Swift builder.
 
 ## 4. Heal what you can, and say so
 
-Ebooks in the wild are broken. Every volume in a real Traditional-Chinese
-library we tested carries four epubcheck errors of its own: an EPUB 3 spine
+Ebooks in the wild are broken. The vertical right-to-left CJK volumes we tested
+carry four epubcheck errors each: an EPUB 3 spine
 attribute on an EPUB 2 package, a table of contents whose identifier disagrees
 with the package, and an `@font-face` pointing at `res:///system/fonts/…`, an
 Android system font that no other reader can load.
