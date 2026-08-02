@@ -466,14 +466,21 @@ p { background: url(images/tile.png); }`;
       }
       return max < 0 ? null : (min + max) / 2 - info.width / 2;
     };
+    // The tolerance is set by the failure this guards, not by one machine's
+    // rendering: an uncompensated title misses centre by ~20px, while the same
+    // compensated code measures -1px on one macOS and -5px on GitHub's
+    // macos-latest (different Chromium, different font metrics — the first run
+    // of this suite on a second machine went red over exactly that). 8px keeps
+    // a 2.5× margin against the real regression and stops holding the
+    // renderer's noise to a bound the feature never promised.
     const verticalOffset = await inkCentre(shelfCover);
-    assert(verticalOffset !== null && Math.abs(verticalOffset) <= 3,
+    assert(verticalOffset !== null && Math.abs(verticalOffset) <= 8,
       `a vertical title's ink is centred on the canvas, not just its box (off by ${verticalOffset === null ? 'no ink' : verticalOffset.toFixed(1) + 'px'})`);
 
     const wideCover = path.join(work, 'shelf-cover-h.jpeg');
     await generateCover('The Book of Elon', 'Eric Jorgenson', wideCover, { pageDirection: 'ltr' });
     const horizontalOffset = await inkCentre(wideCover);
-    assert(horizontalOffset !== null && Math.abs(horizontalOffset) <= 3,
+    assert(horizontalOffset !== null && Math.abs(horizontalOffset) <= 8,
       `and so is a horizontal one (off by ${horizontalOffset === null ? 'no ink' : horizontalOffset.toFixed(1) + 'px'})`);
 
     // The shelf paints a progress badge, a selection tick and an overflow menu
