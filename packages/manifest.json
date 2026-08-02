@@ -27,11 +27,15 @@
   "packages": {
     "scan-ocr": {
       "language": "swift",
-      "status": "planned",
+      "status": "extracted",
       "purpose": "PDF → one JSON line per recognised text line, with bounding boxes. Apple Vision. No EPUB knowledge whatsoever.",
       "publish": "public",
       "allowedDependencies": [],
-      "sources": ["src/main.swift", "macos/Sources/ReepubCore/OCREngine.swift"]
+      "sources": [
+        "packages/scan-ocr/Package.swift",
+        "packages/scan-ocr/Sources/ScanOCR/OCREngine.swift",
+        "packages/scan-ocr/Sources/ScanOCRCLI/main.swift"
+      ]
     },
 
     "epub-kit": {

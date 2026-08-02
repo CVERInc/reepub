@@ -19,10 +19,17 @@ let package = Package(
     dependencies: [
         // Signet — CVER's shared design system. Pinned to main / latest.
         .package(url: "https://github.com/CVERInc/signet", branch: "main"),
+        // The recognition engine, which knows nothing about EPUB and is a
+        // package of its own for exactly that reason. The app and the
+        // command-line binary read the same one; before this they each had a
+        // copy, and one of them said so in a comment nothing verified.
+        .package(path: "../packages/scan-ocr"),
     ],
     targets: [
-        // Pure logic: Vision OCR + EPUB3 assembly. No UI, no locale.
-        .target(name: "ReepubCore"),
+        // Pure logic: EPUB3 assembly over recognised pages. No UI, no locale.
+        .target(name: "ReepubCore", dependencies: [
+            .product(name: "ScanOCR", package: "scan-ocr"),
+        ]),
         // SwiftUI app over Core, reef-themed via Signet.
         .executableTarget(name: "ReepubApp", dependencies: [
             "ReepubCore",

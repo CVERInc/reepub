@@ -3,6 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 import ReepubCore
 import Signet
+import ScanOCR
 
 // Palette via Signet (the shared design system): teal/mint single-source from
 // the reef tokens; darkTeal is a reepub-specific shade. Color(hex:) also comes
@@ -124,12 +125,16 @@ final class ReepubModel: ObservableObject {
 
         Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let pages = try OCREngine.recognize(pdfURL: url) { current, total in
+                // `progress:` is spelled out: recognize takes two closures now,
+                // and an unlabelled trailing one is matched by a rule Swift has
+                // deprecated. Naming it is what keeps this bound to the one it
+                // means rather than to whichever the compiler picks next.
+                let pages = try OCREngine.recognize(pdfURL: url, progress: { current, total in
                     Task { @MainActor in
                         guard let self else { return }
                         self.progressText = String(format: self.loc(.progressOCRPage), current, total)
                     }
-                }
+                })
                 await self?.ocrFinished(pages: pages, name: url.deletingPathExtension().lastPathComponent)
             } catch {
                 await self?.fail(error)

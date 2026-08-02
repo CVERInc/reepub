@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import CoreGraphics
+import ScanOCR
 
 public struct EpubMetadata {
     public var title: String

@@ -17,6 +17,7 @@ Reepub.app/
 macos/build/
 # SwiftPM build artifacts (the macOS app is an SPM package)
 macos/.build/
+packages/*/.build/
 
 # Runtime temp dirs
 temp-epub-ocr/

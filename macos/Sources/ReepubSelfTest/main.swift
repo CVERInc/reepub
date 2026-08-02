@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import PDFKit
 import ReepubCore
+import ScanOCR
 
 // Headless verification of OCREngine: render a known zh-Hant + en PDF, OCR it,
 // and check the recognized text contains the expected strings.
@@ -33,9 +34,9 @@ let tmp = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("r
 try makeTestPDF(at: tmp)
 FileHandle.standardError.write("Wrote test PDF: \(tmp.path)\n".data(using: .utf8)!)
 
-let pages = try OCREngine.recognize(pdfURL: tmp) { current, total in
+let pages = try OCREngine.recognize(pdfURL: tmp, progress: { current, total in
     FileHandle.standardError.write("  OCR page \(current)/\(total)\n".data(using: .utf8)!)
-}
+})
 
 let allLines = pages.flatMap { $0.lines.map { $0.text } }
 print("pages = \(pages.count)")

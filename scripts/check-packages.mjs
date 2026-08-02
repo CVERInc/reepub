@@ -37,7 +37,7 @@ const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 // Directories whose sources the ledger is responsible for, and the extensions
 // that count as source. Anything else (assets, fixtures, docs) is out of scope
 // on purpose — the ledger tracks code, not everything.
-const SCANNED_DIRS = ['src', 'scripts', 'macos/Sources'];
+const SCANNED_DIRS = ['src', 'scripts', 'macos/Sources', 'packages'];
 const SOURCE_EXTENSIONS = ['.js', '.mjs', '.swift', '.sh'];
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');

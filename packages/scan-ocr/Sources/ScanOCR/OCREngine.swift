@@ -45,11 +45,28 @@ public enum OCRError: LocalizedError {
     }
 }
 
-/// Native Vision + PDFKit OCR. Mirrors the heuristics in src/main.swift so the
-/// app and the Node CLI stay in sync.
+/// Native Vision + PDFKit OCR.
+///
+/// This used to be one of two copies — the CLI carried its own, and this file
+/// claimed in a comment to "mirror" it. The scale, the same-line tolerance and
+/// the text/image threshold below were each written twice, with nothing to
+/// notice when they stopped agreeing. They are written once now, and both the
+/// app and the command line read them from here.
 public enum OCREngine {
+    /// Lines within this much normalized vertical distance count as the same
+    /// line, and are then ordered left to right.
+    public static let sameLineTolerance = 0.015
+
+    /// A page recognised as fewer characters than this is an illustration or a
+    /// plate, not prose: keeping it as an image beats shipping garbled OCR.
+    public static let textPageMinimumCharacters = 120
+
+    /// PDF pages are rendered at this multiple of their crop box before
+    /// recognition — Vision reads a 2× bitmap markedly better than a 1× one.
+    public static let renderScale: CGFloat = 2.0
+
     /// Render a PDF page to a bitmap at `scale`× on a white background.
-    static func renderImage(from page: PDFPage, scale: CGFloat = 2.0) -> CGImage? {
+    public static func renderImage(from page: PDFPage, scale: CGFloat = renderScale) -> CGImage? {
         let bounds = page.bounds(for: .cropBox)
         let width = Int(bounds.size.width * scale)
         let height = Int(bounds.size.height * scale)
@@ -92,7 +109,19 @@ public enum OCREngine {
 
     /// OCR every page of a PDF. `progress` is invoked with (current, total) on a
     /// background queue.
-    public static func recognize(pdfURL: URL, progress: ((Int, Int) -> Void)? = nil) throws -> [OCRPage] {
+    ///
+    /// `keepImages` decides whether the returned pages carry their bitmaps. The
+    /// app wants them — it holds the whole book to build from. A command line
+    /// writing each plate to disk as it goes does not, and a three-hundred-page
+    /// scan at 2× is a great deal of memory to hold for nothing. `onPage` hands
+    /// each page and its bitmap over inside the autorelease pool, which is what
+    /// makes dropping them affordable.
+    public static func recognize(
+        pdfURL: URL,
+        keepImages: Bool = true,
+        progress: ((Int, Int) -> Void)? = nil,
+        onPage: ((OCRPage, CGImage) -> Void)? = nil
+    ) throws -> [OCRPage] {
         guard let doc = PDFDocument(url: pdfURL) else {
             throw OCRError.cannotOpenPDF(pdfURL.lastPathComponent)
         }
@@ -109,13 +138,16 @@ public enum OCREngine {
                 let raw = recognizeLines(in: image)
                 // top-to-bottom, left-to-right
                 let sorted = raw.sorted { a, b in
-                    if abs(a.y - b.y) < 0.015 { return a.x < b.x }
+                    if abs(a.y - b.y) < sameLineTolerance { return a.x < b.x }
                     return a.y > b.y
                 }
 
                 let totalChars = sorted.reduce(0) { $0 + $1.text.count }
-                let type = totalChars < 120 ? "image" : "text"
-                pages.append(OCRPage(pageIndex: i, lines: sorted, type: type, image: image))
+                let type = totalChars < textPageMinimumCharacters ? "image" : "text"
+                let ocrPage = OCRPage(pageIndex: i, lines: sorted, type: type,
+                                      image: keepImages ? image : nil)
+                onPage?(ocrPage, image)
+                pages.append(ocrPage)
             }
         }
         return pages
