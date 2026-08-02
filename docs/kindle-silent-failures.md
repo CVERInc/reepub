@@ -3,8 +3,15 @@
 > **Two bugs, not one.** Both make a Kindle hide the cover *and* the table of
 > contents of an entire book. Both produce files that epubcheck passes with
 > 0 errors / 0 warnings. Both were found the only way they could be — by
-> bisection over ~40 builds side-loaded onto a real device, one book at a time,
-> 2026-08-01.
+> bisection over ~40 builds, one book at a time, on hardware, 2026-08-01.
+
+**How the books got there matters.** Every build was delivered through Amazon's
+own [Send to Kindle](https://www.amazon.co.jp/sendtokindle/) web uploader
+(`amazon.co.jp` storefront) to a Japanese-market device — not by USB, not by
+email. That is Amazon's own EPUB→KFX conversion pipeline, which is what makes
+these findings about *the converter* rather than about one transfer method. It
+also bounds them: other storefronts and other delivery paths were not tested,
+and the device's firmware version is a variable nobody controlled.
 
 ## Why this file exists
 
@@ -222,9 +229,15 @@ Extracted from what actually worked, versus what was merely reasonable:
 
 ## Not answered here
 
-- **Why** a Kindle behaves this way. Only that it does, on the tested firmware
-  (a Japanese-market device, 2026-08-01). Both rules are inferred from behaviour,
+- **Why** a Kindle behaves this way. Only that it does, via the `amazon.co.jp`
+  Send to Kindle converter on 2026-08-01. Both rules are inferred from behaviour,
   not from documentation.
+- Whether other Amazon storefronts convert identically. Plausible — it is
+  presumably one pipeline — but "presumably" is how the entity-encoding false
+  negative survived a dozen rounds, so it is written here as untested rather
+  than as a safe assumption.
+- Whether USB or email delivery behaves the same. Not tested; both bypass or
+  differ from the web uploader's conversion step.
 - Whether other readers are affected. Both fixes are inert elsewhere — an unknown
   `<meta name>` is ignored, and removing decorative icons changes nothing for a
   reader that was fine with them — so no reader was regression-tested.

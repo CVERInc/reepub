@@ -3,8 +3,14 @@
 What reepub promises, and what it forbids itself in order to keep the promise.
 
 Each principle below carries a **Forbidden** clause. Those clauses are not
-aspirational — `scripts/check-release-readiness.mjs` asserts them and CI fails
-the build when one is violated. A promise nothing can check is marketing.
+aspirational — a machine asserts every one of them and CI fails the build when
+one is violated. Most are static rules in `scripts/check-release-readiness.mjs`;
+§6 is enforced by `scripts/check-sync-markers.mjs` and §7 by the spec suites,
+because what those two forbid is a property of the *output*, which no pattern in
+the source can catch. Each principle names its own enforcer, so that this
+paragraph cannot quietly become false as the set grows.
+
+A promise nothing can check is marketing.
 
 ---
 
@@ -123,6 +129,36 @@ compares them, so drift is caught by CI rather than by an audit.
 
 - Changing a shared heuristic on one side only.
 - A sync claim that only a comment asserts.
+
+## 7. A book a Kindle will not quietly maim
+
+A book that validates is not the same as a book a reader can open. Two
+constructs make Amazon's EPUB→KFX converter hide the cover **and** the table of
+contents of the entire book — not the chapter at fault, the whole book — while
+the file passes epubcheck with 0 errors and the reading text renders fine: an
+RTL book with no `primary-writing-mode` metadata, and pictographic emoji
+anywhere in the text.
+
+Neither appears in any specification. They were found by bisection over ~40
+builds delivered through Amazon's own Send to Kindle uploader, one at a time, on
+hardware; roughly thirty-five of those builds existed only to kill a hypothesis.
+The disproof ledger — including the three tests that turned out to be measuring
+nothing — is in [`docs/kindle-silent-failures.md`](docs/kindle-silent-failures.md).
+
+**Forbidden**
+
+- Emitting `page-progression-direction="rtl"` without the writing-mode metadata
+  that keeps the cover reachable.
+- Letting a pictograph reach a chapter by default.
+- Widening that range into a book's own language. CJK Extension B is text;
+  arrows and bullets are diagram. A compatibility rule that quietly grows is
+  worse than the defect it fixes, because it costs the reader content they
+  cannot see is missing.
+
+Asserted by `src/test-web-spec.js`, `src/test-core-spec.js` and
+`macos/Sources/ReepubSelfTest/main.swift` — three suites rather than one,
+because the rule has to hold in both assemblers and §6 is what keeps them from
+disagreeing about it.
 
 ---
 
