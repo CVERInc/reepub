@@ -12,4 +12,6 @@ echo "→ test";  npm test --if-present
 echo "→ build (Swift OCR CLI — needs Xcode)"; npm run build --if-present
 echo "→ release readiness"; node scripts/check-release-readiness.mjs
 echo "→ sync markers (Node/Swift EPUB builders)"; node scripts/check-sync-markers.mjs
+echo "→ package ledger"; node scripts/check-packages.mjs
+echo "→ package ledger (selftest — every gate must still fire)"; node scripts/check-packages.mjs --selftest
 echo "✅ ALL GREEN"

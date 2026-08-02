@@ -1,0 +1,165 @@
+{
+  "$comment": [
+    "The package ledger. Every source file in this repo belongs to exactly one",
+    "package, and scripts/check-packages.mjs fails if that stops being true.",
+    "",
+    "This file exists because of a diagnosis, not a preference: reepub started",
+    "(2026-05-28) with the right division — Swift for what only Swift can do",
+    "(Vision OCR), Node for assembly. It drifted twice. On 2026-06-14 the app",
+    "needed to be offline and self-sufficient, so assembly was rebuilt in Swift;",
+    "that is where 'one implementation' broke. Between 2026-07-30 and 08-01 five",
+    "more modules appeared, all Node-only, in three days.",
+    "",
+    "Nobody chose that. Sessions without memory of how the repo grew kept",
+    "building in whichever direction was convenient, and Node is the convenient",
+    "one. A ledger a machine reads is the only kind that survives that, which is",
+    "why 'sources' is enforced rather than documented.",
+    "",
+    "Decision 2026-08-02 (see HANDOFF.md): the assembly core moves to Swift,",
+    "because Vision OCR cannot leave it and offline quality is what the product",
+    "stands on. 'target' records where each file is headed; 'sources' records",
+    "where it actually is today. They are allowed to disagree — that gap IS the",
+    "migration. What is not allowed is a file belonging to neither."
+  ],
+
+  "assemblers": ["epub-kit", "epub-binder"],
+
+  "packages": {
+    "scan-ocr": {
+      "language": "swift",
+      "status": "planned",
+      "purpose": "PDF → one JSON line per recognised text line, with bounding boxes. Apple Vision. No EPUB knowledge whatsoever.",
+      "publish": "public",
+      "allowedDependencies": [],
+      "sources": ["src/main.swift", "macos/Sources/ReepubCore/OCREngine.swift"]
+    },
+
+    "epub-kit": {
+      "language": "swift",
+      "status": "planned",
+      "purpose": "The assembly core: package document, navigation document, NCX, chapter XHTML, cover HTML. The one implementation, per decision A.",
+      "publish": "internal",
+      "allowedDependencies": [],
+      "sources": ["macos/Sources/ReepubCore/EpubBuilder.swift"]
+    },
+
+    "epub-text": {
+      "language": "node",
+      "status": "planned",
+      "purpose": "XML and text plumbing: escaping, serialisation, entity decoding, pictograph stripping. Seven modules import it and every one of them is alive.",
+      "publish": "internal",
+      "allowedDependencies": [],
+      "sources": ["src/epub-text.js"]
+    },
+
+    "epub-binder": {
+      "language": "node",
+      "status": "transitional",
+      "purpose": "Emits package documents from Node for heal / merge / web-ingest. Transitional by construction: it is the second assembler, and the boundary gate lists it as a known one until those callers drive epub-kit instead.",
+      "publish": "internal",
+      "allowedDependencies": [],
+      "target": "epub-kit — Node tools should call the Swift binary rather than emit their own <package>",
+      "sources": ["src/binder.js"]
+    },
+
+    "epub-doctor": {
+      "language": "node",
+      "status": "planned",
+      "purpose": "Operates on finished EPUBs: validate, heal, merge. Never touches OCR, never rasterises a cover — which is what keeps its dependency budget to one library.",
+      "publish": "public",
+      "allowedDependencies": ["cheerio"],
+      "sources": [
+        "src/validator.js",
+        "src/heal.js",
+        "src/merge.js",
+        "src/contents-page.js",
+        "src/emoji-glyphs.js"
+      ]
+    },
+
+    "epub-cover": {
+      "language": "node",
+      "status": "planned",
+      "purpose": "Typesets a cover and rasterises it through a browser. Separated from epub-doctor so that package can be installed without downloading Chromium — a lazy require would not have helped, because the dependency is charged at install time, not at load time.",
+      "publish": "internal",
+      "allowedDependencies": ["playwright", "sharp"],
+      "target": "the typesetting half moves to epub-kit (Swift) and emits HTML; this package keeps only the Node rasteriser, with WKWebView as the app's",
+      "sources": ["src/cover-generator.js", "src/title-setting.js"]
+    },
+
+    "web-ingest": {
+      "language": "node",
+      "status": "planned",
+      "purpose": "A web page reduced to structure: strip layout, translate classes, dehydrate images. The base a web→md exporter would sit on.",
+      "publish": "internal",
+      "allowedDependencies": ["cheerio", "sharp"],
+      "sources": ["src/sanitizer.js", "src/dehydrator.js", "src/web-to-epub.js"]
+    },
+
+    "ocr-builder-node": {
+      "language": "node",
+      "status": "freeze-pending",
+      "purpose": "The Node path from OCR output to EPUB, and the paragraph heuristics only it uses. This is the ONLY code genuinely duplicated by EpubBuilder.swift.",
+      "publish": "none",
+      "allowedDependencies": [],
+      "freezeCondition": "flips to \"frozen\" when the CLI builds through epub-kit. Kept, not strangled — but kept as a FILE, never as a documented way to use reepub.",
+      "sources": ["src/builder.js"]
+    },
+
+    "app": {
+      "language": "swift",
+      "status": "planned",
+      "purpose": "The product. SwiftUI, offline, consumes scan-ocr + epub-kit.",
+      "publish": "product",
+      "allowedDependencies": [],
+      "sources": [
+        "macos/Sources/ReepubApp/ReepubApp.swift",
+        "macos/Sources/ReepubApp/ContentView.swift",
+        "macos/Sources/ReepubApp/Localization.swift"
+      ]
+    },
+
+    "cli": {
+      "language": "node",
+      "status": "planned",
+      "purpose": "Thin surfaces over the cores: local web UI, the web→EPUB entry point, the image optimizer.",
+      "publish": "public",
+      "allowedDependencies": [],
+      "sources": ["src/server.js", "scripts/build-from-web.js", "scripts/optimize.js"]
+    },
+
+    "_tests": {
+      "language": "node",
+      "status": "virtual",
+      "purpose": "Suites. Not a shipped package; claimed here so no test file counts as unowned.",
+      "publish": "none",
+      "allowedDependencies": [],
+      "sources": [
+        "src/test-builder.js",
+        "src/test-core-spec.js",
+        "src/test-epub-conformance.js",
+        "src/test-validation.js",
+        "src/test-web-spec.js",
+        "macos/Sources/ReepubSelfTest/main.swift"
+      ]
+    },
+
+    "_tooling": {
+      "language": "node",
+      "status": "virtual",
+      "purpose": "Repo-level guards and fetchers. Not shipped.",
+      "publish": "none",
+      "allowedDependencies": [],
+      "sources": [
+        "scripts/check-packages.mjs",
+        "scripts/check-release-readiness.mjs",
+        "scripts/check-sync-markers.mjs",
+        "scripts/fetch-emoji-assets.mjs",
+        "scripts/fetch-epubcheck.mjs",
+        "scripts/calibrate-cover-ground.mjs",
+        "scripts/preview-cover.mjs",
+        "scripts/test.sh"
+      ]
+    }
+  }
+}
