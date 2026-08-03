@@ -30,6 +30,28 @@ door onto your network.
   addressed by opaque, server-issued ids, so "read or delete an arbitrary file"
   is not an attack that was blocked — it is a request that cannot be expressed.
 
+## 1a. The source stays readable, because the promise depends on it
+
+The claim above — *privacy that's structural, not a promise* — is only true if
+you can check it. A closed binary saying "there is no outbound call in the
+conversion path" is a promise; the same sentence over readable source is a
+fact anyone can verify in an afternoon. Closing the source would not weaken the
+guarantee a little, it would convert it into the exact kind of assurance
+Principle 1 exists to replace.
+
+So the app is not the thing being sold, and it will not become it. What can
+honestly be sold is **convenience that costs us money or time and costs you
+neither**: a signed and notarized build, automatic updates, and not needing
+Xcode to get a working copy. None of those change what the program does; all of
+them change how much work it is to have it. Ruled 2026-08-03.
+
+**Forbidden**
+
+- Shipping a build whose corresponding source is not public under the same terms.
+- Putting any conversion capability behind a paid tier. The paid thing is
+  delivery, never behaviour.
+- Framing the free build as a trial, a "community edition", or feature-limited.
+
 ## 2. Never ship an invalid book
 
 A book that fails validation is deleted, and the command exits non-zero. The
