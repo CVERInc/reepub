@@ -30,7 +30,8 @@ const {
   COVER_IMAGE,
 } = require('./merge');
 const { validateEpub } = require('./validator');
-const { generateCover, layoutForDirection } = require('./cover-generator');
+const { layoutForDirection } = require('./cover-page');
+const { optional } = require('./optional');
 const { decodeNonAsciiRefs } = require('./epub-text');
 const contentsPage = require('./contents-page');
 
@@ -227,6 +228,10 @@ async function main() {
     const coverTitle = options.title || book.title || path.basename(inputPath, '.epub');
     const coverAuthor = options.author || book.creator;
     if (options.cover) {
+      // Drawing is the only thing here that needs a browser, so it is the only
+      // thing that asks for one. See src/optional.js.
+      const { generateCover } = optional(() => require('./cover-generator'),
+        { pkg: 'epub-raster', need: 'heal --cover' });
       const layout = layoutForDirection(book.pageDirection);
       console.log(`  drawing a new ${layout} cover…`);
       coverImagePath = path.join(scratch, COVER_IMAGE);
@@ -270,7 +275,8 @@ async function main() {
     let glyphsInlined = 0;
     let glyphsDistinct = 0;
     if (options.emoji === 'glyph') {
-      const glyphs = require('./emoji-glyphs');
+      const glyphs = optional(() => require('./emoji-glyphs'),
+        { pkg: 'epub-raster', need: 'heal --emoji glyph' });
       const found = new Set();
       for (const chapter of book.chapters) {
         const raw = fs.readFileSync(path.join(book.root, chapter.path), 'utf8');

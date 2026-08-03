@@ -31,7 +31,8 @@ const { execFileSync } = require('child_process');
 const { newUuid, buildOpf, buildNcx, buildNavDocument, HREFS } = require('./binder');
 const { escapeAttr, serializeXml, decodeNonAsciiRefs, stripPictographsFrom } = require('./epub-text');
 const { validateEpub } = require('./validator');
-const { generateCover, buildCoverImagePage } = require('./cover-generator');
+const { buildCoverImagePage } = require('./cover-page');
+const { optional } = require('./optional');
 
 // EPUB 3, because it is the only version whose spine can carry
 // page-progression-direction: epubcheck rejects that attribute on an EPUB 2
@@ -639,7 +640,8 @@ function relocateChapter(chapter, volume, pool, options = {}) {
     pictographsRemoved = stripPictographsFrom($);
     if (pictographsRemoved > 0) rewritten = true;
   } else if (emoji !== 'keep') {
-    const { inlinePictographsIn } = require('./emoji-glyphs');
+    const { inlinePictographsIn } = optional(() => require('./emoji-glyphs'),
+      { pkg: 'epub-raster', need: 'merge --emoji glyph' });
     pictographsInlined = inlinePictographsIn($, emoji);
     if (pictographsInlined > 0) rewritten = true;
   }
@@ -824,6 +826,9 @@ async function main() {
     let coverImagePath = null;
     let coverFit = {};
     if (options.cover) {
+      // The only step in a merge that needs a browser. See src/optional.js.
+      const { generateCover } = optional(() => require('./cover-generator'),
+        { pkg: 'epub-raster', need: 'merge --cover' });
       console.log('  generating cover…');
       coverImagePath = path.join(scratch, COVER_IMAGE);
       coverFit = await generateCover(title, author, coverImagePath,

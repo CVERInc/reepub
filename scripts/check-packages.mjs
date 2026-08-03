@@ -19,6 +19,7 @@
 //   4. every source file on disk is claimed by exactly one package   ← the point
 //   5. a frozen package's files still hash to what was recorded
 //   6. only a declared assembler emits a <package> / NCX / nav document
+//   7. no package reaches, transitively, an external module it did not declare
 //
 // Run with --selftest to watch every one of them fail on purpose. A gate nobody
 // has seen fail is not evidence of anything, so the failures are demonstrated
@@ -150,6 +151,125 @@ function checkAssemblyBoundary(world) {
   return problems;
 }
 
+// Node's own modules are free: they arrive with the runtime and cost an
+// installer nothing. Everything else is charged to the package that pulls it.
+const BUILTINS = new Set([
+  'assert', 'buffer', 'child_process', 'crypto', 'events', 'fs', 'http', 'https',
+  'module', 'net', 'os', 'path', 'process', 'stream', 'string_decoder', 'timers',
+  'tty', 'url', 'util', 'worker_threads', 'zlib',
+]);
+
+const isBuiltin = (spec) => spec.startsWith('node:') || BUILTINS.has(spec);
+const isRelative = (spec) => spec.startsWith('./') || spec.startsWith('../');
+
+// Specifiers as they are written. A computed require — require(join(root, x)) —
+// is invisible here, and saying so is better than pretending otherwise: this
+// measures what an installer would have to fetch, which is a question about
+// literal specifiers anyway.
+//
+// One shape is read as an edge that may be absent:
+//
+//   optional(() => require('./cover-generator'), { pkg: 'epub-raster', ... })
+//
+// and nothing else is. A bare `require` inside an `if` is still charged, which
+// is the honest reading: laziness saves load time, and the bill for a
+// dependency arrives at install time.
+const OPTIONAL_CALL = /\boptional\(\s*\(\)\s*=>\s*require\(\s*['"]([^'"]+)['"]\s*\)/g;
+const PLAIN_REQUIRE = /\brequire\(\s*['"]([^'"]+)['"]\s*\)/g;
+
+function specifiersIn(source) {
+  const wrapped = [...source.matchAll(OPTIONAL_CALL)].map((m) => m[1]);
+  const all = [...source.matchAll(PLAIN_REQUIRE)].map((m) => m[1]);
+  const count = (list, spec) => list.filter((x) => x === spec).length;
+
+  const out = [];
+  for (const spec of all) {
+    // Wrapped AND plain in the same file means the optional one buys nothing:
+    // the plain require already pulls the module in. Report it rather than
+    // letting the marker launder the hard edge.
+    const bothWays = count(wrapped, spec) > 0 && count(all, spec) > count(wrapped, spec);
+    out.push({ spec, optional: count(wrapped, spec) > 0 && !bothWays, bothWays });
+  }
+  for (const m of source.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)) {
+    out.push({ spec: m[1], optional: false, bothWays: false });
+  }
+  return out;
+}
+
+function resolveRelative(fromFile, spec, files) {
+  const base = join(dirname(fromFile), spec);
+  for (const candidate of [base, `${base}.js`, `${base}.mjs`, `${base}/index.js`]) {
+    const normalized = candidate.split('/').filter((s) => s !== '.').join('/');
+    if (files.has(normalized)) return normalized;
+  }
+  return null;
+}
+
+// What `npm install <package>` would actually drag in, following intra-repo
+// edges. Declaring cheerio while importing a module that imports playwright is
+// a budget of one and an install of a browser.
+function checkDependencyBudget(world) {
+  const ownerOf = new Map();
+  for (const [name, pkg] of Object.entries(world.manifest.packages)) {
+    for (const path of pkg.sources) ownerOf.set(path, name);
+  }
+
+  const problems = [];
+  for (const [name, pkg] of Object.entries(world.manifest.packages)) {
+    if (pkg.status === 'virtual' || pkg.language !== 'node') continue;
+
+    const allowed = new Set(pkg.allowedDependencies);
+    const seen = new Set();
+    const queue = [...pkg.sources];
+    // path -> the file inside this package that first reached it, so a report
+    // names a route rather than just a verdict.
+    const reachedBy = new Map(pkg.sources.map((p) => [p, null]));
+
+    while (queue.length) {
+      const file = queue.shift();
+      if (seen.has(file)) continue;
+      seen.add(file);
+      const source = world.files.get(file);
+      if (source === undefined) continue;
+
+      const declaredOptional = new Set(pkg.optionalPackages || []);
+      for (const { spec, optional: isOptional, bothWays } of specifiersIn(source)) {
+        if (isBuiltin(spec)) continue;
+        if (bothWays) {
+          problems.push(`${file} loads ${spec} both through optional() and plainly — the plain one already charges the budget, so the marker is buying nothing`);
+        }
+        if (isRelative(spec)) {
+          const target = resolveRelative(file, spec, world.files);
+          if (!target) continue;
+          if (isOptional) {
+            // Not charged, not followed — but the edge has to be declared, or
+            // optional() becomes an escape hatch nobody signed off on.
+            const owner = ownerOf.get(target);
+            if (!declaredOptional.has(owner)) {
+              problems.push(`${name} loads ${target} (${owner}) through optional() but does not list ${owner} in optionalPackages`);
+            }
+            continue;
+          }
+          if (!seen.has(target)) {
+            reachedBy.set(target, file);
+            queue.push(target);
+          }
+          continue;
+        }
+        const bare = spec.startsWith('@')
+          ? spec.split('/').slice(0, 2).join('/')
+          : spec.split('/')[0];
+        if (allowed.has(bare)) continue;
+
+        const via = ownerOf.get(file);
+        const route = via === name ? `${file}` : `${file} (${via ?? 'unowned'})`;
+        problems.push(`${name} declares [${[...allowed].join(', ') || 'nothing'}] but reaches ${bare} through ${route}`);
+      }
+    }
+  }
+  return [...new Set(problems)];
+}
+
 const CHECKS = [
   ['every package has a README', checkReadmes],
   ['every claimed path exists', checkClaimedPathsExist],
@@ -157,6 +277,7 @@ const CHECKS = [
   ['no source file is unowned', checkNothingUnowned],
   ['frozen packages are unchanged', checkFrozen],
   ['only an assembler emits a package document', checkAssemblyBoundary],
+  ['no package installs more than it declares', checkDependencyBudget],
 ];
 
 // ----------------------------------------------------------------- the world
@@ -252,6 +373,18 @@ function selftest(real) {
     // a second copy would drift from the real one, and writing the literal here
     // would trip the release-readiness check that forbids a stray <package>
     // template — which it duly did, the first time this file ran.
+    ['no package installs more than it declares', checkDependencyBudget, (w) => {
+      w.manifest.packages['web-ingest'].allowedDependencies = [];
+    }],
+    ['an optional edge must be declared', checkDependencyBudget, (w) => {
+      w.manifest.packages['epub-doctor'].optionalPackages = [];
+    }],
+    ['optional() cannot launder a plain require', checkDependencyBudget, (w) => {
+      // Same module reached both ways: the plain one already installs it, so
+      // the marker on the other is decoration.
+      w.files.set('src/heal.js',
+        `${w.files.get('src/heal.js')}\nconst eager = require('./cover-generator');\n`);
+    }],
     ['only an assembler emits a package document', checkAssemblyBoundary, (w) => {
       const [mark] = ASSEMBLY_MARKS[0];
       w.files.set('src/validator.js', `${w.files.get('src/validator.js')}\n// ${mark} version="3.0">\n`);

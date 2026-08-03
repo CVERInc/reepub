@@ -62,7 +62,9 @@ const CANVAS = { width: 1600, height: 2260 };
 // independent of the cover's proportions: any aspect ratio bleeds into the
 // fill, so the shape of a cover stays a design decision instead of becoming a
 // device workaround.
-const COVER_GROUND = '#111111';
+// Lives in cover-page.js with the rest of the browser-free half, so a caller
+// that only needs the cover PAGE does not have to install a browser to get it.
+const { COVER_GROUND, layoutForDirection, buildCoverImagePage } = require('./cover-page');
 
 // document.fonts.ready can never settle if a face fails to load, so the wait is
 // raced against this ceiling — a missing font must degrade the cover, not hang
@@ -101,19 +103,6 @@ function assertLayout(layout) {
     throw new TypeError(
       `Unknown cover layout ${JSON.stringify(layout)} (expected one of: ${LAYOUTS.join(', ')})`);
   }
-}
-
-/**
- * Which cover a book gets, decided by how it is read rather than by what it is
- * about. A right-to-left spine means a vertical cover; everything else gets the
- * horizontal one.
- *
- * The rule lives here, once, because it is a property of the edition: callers
- * that each re-derive it from their own idea of "is this a Chinese book" are how
- * two books in the same series end up with two different covers.
- */
-function layoutForDirection(pageDirection) {
-  return String(pageDirection || '').toLowerCase() === 'rtl' ? 'vertical' : 'horizontal';
 }
 
 /**
@@ -400,38 +389,6 @@ async function measureOpticalShift(page) {
   // One em is one percent of the canvas width, which is what the stylesheet
   // was written in.
   return Number((offsetPx / (CANVAS.width / 100)).toFixed(3));
-}
-
-/**
- * The cover page bound into the book: the cover image, shown.
- *
- * The design is typography, but it is rasterised once and that raster serves
- * both the shelf thumbnail and this page — one picture, two jobs. Setting the
- * type again here as live HTML would look better in principle and worse in
- * fact: a reader that converts EPUB to its own format supports far less CSS
- * than the browser the raster was drawn in, so the page could break while the
- * thumbnail beside it stayed perfect. And a preserved cover must be shown as
- * the picture it is anyway — re-setting a scanned dust jacket as a title is
- * drawing a new cover, which nobody asked for.
- */
-function buildCoverImagePage({ imageHref, title = '', language = 'en' } = {}) {
-  const lang = escapeAttr(language || 'en');
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="${lang}" lang="${lang}">
-<head>
-  <meta charset="UTF-8" />
-  <title>${escapeXML(title)}</title>
-  <style>
-    html, body { margin: 0; padding: 0; background: ${COVER_GROUND}; }
-    body { text-align: center; page-break-after: always; break-after: page; }
-    img { width: 100%; height: auto; display: block; margin: 0 auto; }
-  </style>
-</head>
-<body epub:type="cover">
-  <img src="${escapeAttr(imageHref)}" alt="${escapeAttr(title)}" />
-</body>
-</html>`;
 }
 
 /**

@@ -63,6 +63,12 @@ jobs:
       # from a machine without the hook, or a pull request, never met them. The
       # selftest runs alongside the check on purpose: a guard that has never been
       # seen to fail tells you nothing, and a green tree is not the difference.
+      # Reads no source: it removes playwright and sharp from module resolution
+      # and runs the repair tools for real. "The imports look right" and "it
+      # works without a browser" are different claims.
+      - name: Optional boundary
+        run: node scripts/check-optional-boundary.mjs
+
       - name: Package ledger
         run: |
           node scripts/check-packages.mjs

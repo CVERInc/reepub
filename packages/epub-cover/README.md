@@ -1,22 +1,22 @@
 # epub-cover
 
-**node** · 📋 planned — not yet moved · internal
+**node** · planned · internal
 
-Typesets a cover and rasterises it through a browser. Separated from epub-doctor so that package can be installed without downloading Chromium — a lazy require would not have helped, because the dependency is charged at install time, not at load time.
+The cover as text, with no browser in it: which layout an edition gets, the XHTML page that shows the finished image, and where an English title breaks. merge needs the cover PAGE for every book that has one — including a cover it merely carried across — so this half must be reachable without installing Chromium.
 
 ## Dependency budget
 
-`playwright`, `sharp`
+none — anything beyond the standard library is a change to
+`packages/manifest.json`, not to `package.json`.
+
+Nothing here draws. Rasterising is `epub-raster`'s job, and that split is what
+lets a repair tool ask for the cover *page* without asking for a browser.
 
 ## Target
 
-the typesetting half moves to epub-kit (Swift) and emits HTML; this package keeps only the Node rasteriser, with WKWebView as the app's
+moves to epub-kit (Swift), which emits the same HTML for both rasterisers
 
 ## Where the code is right now
 
-- `src/cover-generator.js`
+- `src/cover-page.js`
 - `src/title-setting.js`
-
-The ledger in [`../manifest.json`](../manifest.json) is the source of truth, and
-`scripts/check-packages.mjs` fails the build if this list and the tree disagree.
-Nothing has moved yet — this directory is the shape, not the contents.

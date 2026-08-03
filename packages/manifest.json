@@ -81,23 +81,34 @@
       "purpose": "Operates on finished EPUBs: validate, heal, merge. Never touches OCR, never rasterises a cover — which is what keeps its dependency budget to one library.",
       "publish": "public",
       "allowedDependencies": ["cheerio"],
+      "optionalPackages": ["epub-raster"],
       "sources": [
         "src/validator.js",
         "src/heal.js",
         "src/merge.js",
         "src/contents-page.js",
-        "src/emoji-glyphs.js"
+        "src/optional.js"
       ]
     },
 
     "epub-cover": {
       "language": "node",
       "status": "planned",
-      "purpose": "Typesets a cover and rasterises it through a browser. Separated from epub-doctor so that package can be installed without downloading Chromium — a lazy require would not have helped, because the dependency is charged at install time, not at load time.",
+      "purpose": "The cover as text, with no browser in it: which layout an edition gets, the XHTML page that shows the finished image, and where an English title breaks. merge needs the cover PAGE for every book that has one — including a cover it merely carried across — so this half must be reachable without installing Chromium.",
+      "publish": "internal",
+      "allowedDependencies": [],
+      "target": "moves to epub-kit (Swift), which emits the same HTML for both rasterisers",
+      "sources": ["src/cover-page.js", "src/title-setting.js"]
+    },
+
+    "epub-raster": {
+      "language": "node",
+      "status": "planned",
+      "purpose": "Turns the typeset cover into pixels, and redraws pictographs as engravings. Chromium and sharp live here and nowhere else — this is the package a repair tool must be able to do without.",
       "publish": "internal",
       "allowedDependencies": ["playwright", "sharp"],
-      "target": "the typesetting half moves to epub-kit (Swift) and emits HTML; this package keeps only the Node rasteriser, with WKWebView as the app's",
-      "sources": ["src/cover-generator.js", "src/title-setting.js"]
+      "target": "one of two rasterisers over one typesetter; the app's is WKWebView",
+      "sources": ["src/cover-generator.js", "src/emoji-glyphs.js"]
     },
 
     "web-ingest": {
@@ -105,7 +116,7 @@
       "status": "planned",
       "purpose": "A web page reduced to structure: strip layout, translate classes, dehydrate images. The base a web→md exporter would sit on.",
       "publish": "internal",
-      "allowedDependencies": ["cheerio", "sharp"],
+      "allowedDependencies": ["cheerio", "sharp", "playwright"],
       "sources": ["src/sanitizer.js", "src/dehydrator.js", "src/web-to-epub.js"]
     },
 
@@ -114,7 +125,8 @@
       "status": "freeze-pending",
       "purpose": "The Node path from OCR output to EPUB, and the paragraph heuristics only it uses. This is the ONLY code genuinely duplicated by EpubBuilder.swift.",
       "publish": "none",
-      "allowedDependencies": [],
+      "allowedDependencies": ["cheerio"],
+      "allowedDependenciesNote": "cheerio arrives through validator.js; builder.js imports nothing external itself",
       "freezeCondition": "flips to \"frozen\" when the CLI builds through epub-kit. Kept, not strangled — but kept as a FILE, never as a documented way to use reepub.",
       "sources": ["src/builder.js"]
     },
@@ -137,7 +149,7 @@
       "status": "planned",
       "purpose": "Thin surfaces over the cores: local web UI, the web→EPUB entry point, the image optimizer.",
       "publish": "public",
-      "allowedDependencies": [],
+      "allowedDependencies": ["cheerio", "sharp", "playwright"],
       "sources": ["src/server.js", "scripts/build-from-web.js", "scripts/optimize.js"]
     },
 
@@ -166,6 +178,7 @@
       "sources": [
         "scripts/check-packages.mjs",
         "scripts/check-ocr-contract.mjs",
+        "scripts/check-optional-boundary.mjs",
         "scripts/check-release-readiness.mjs",
         "scripts/check-sync-markers.mjs",
         "scripts/fetch-emoji-assets.mjs",
