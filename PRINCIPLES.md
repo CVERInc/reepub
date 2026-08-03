@@ -134,23 +134,37 @@ validation, packaging — is the platform or this repository.
 - A dependency the README does not need.
 - Scope the README does not promise.
 
-## 6. Node and Swift stay honest with each other
+## 6. Two rules are shared, and only those two are promised
 
-The CLI (`src/epub-text.js`) and the macOS app
-(`packages/epub-kit/Sources/EpubKit/EpubBuilder.swift`) reimplement the same OCR
-heuristics in two languages, so the same PDF must produce the same book from
-either. That claim used to be a comment, and it was false in three places —
-including a paragraph-break rule that disagreed on `“` and a heading rule that
-measured a Traditional-Chinese title as 50 characters in one language and 25 in
-the other.
+`src/epub-text.js` and the app's assembler
+(`packages/epub-kit/Sources/EpubKit/EpubBuilder.swift`) both carry the XML escape
+table and the pictograph range. Those two are promised: a book repaired by
+`reepub heal` and a book built by the app escape the same characters and strip
+the same range, because both of those tools are maintained.
+`scripts/check-sync-markers.mjs` compares them and CI fails when they disagree.
 
-`scripts/check-sync-markers.mjs` now extracts the rules from both sources and
-compares them, so drift is caught by CI rather than by an audit.
+The rest is not promised, and saying so is the point. The two sides also share
+paragraph heuristics, and this section used to claim the same PDF must produce
+the same book from either — which is a commitment to keep a second
+implementation in step forever. Open source is not an undertaking to do that.
+The Node path stays and works; development happens in the app; the difference
+between them is recorded by the same script as a list rather than enforced as a
+rule, and it is the list to work from if that path is ever picked back up.
+
+Nothing is labelled "unmaintained", because a label is itself a thing to
+maintain — an out-of-date one is worse than none. What is maintained is visible
+per file, in the dates, and cannot go stale.
+
+The two promised rules are not chosen for tidiness. The claim in this section
+was once only a comment, and it was false in three places: a paragraph-break
+rule that disagreed on `“`, and a heading rule that measured a
+Traditional-Chinese title as 50 characters in one language and 25 in the other.
 
 **Forbidden**
 
-- Changing a shared heuristic on one side only.
+- Changing the escape table or the pictograph range on one side only.
 - A sync claim that only a comment asserts.
+- Reporting a recorded difference as a failure, or a promise as a note.
 
 ## 7. A book a Kindle will not quietly maim
 

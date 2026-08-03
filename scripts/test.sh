@@ -17,7 +17,7 @@ echo "→ build (Swift OCR CLI — needs Xcode)"; npm run build --if-present
 echo "→ Swift EPUB builder self-test (needs Xcode)"; (cd macos && swift build && swift run ReepubSelfTest)
 echo "→ scan-ocr ↔ builder.js wire contract"; node scripts/check-ocr-contract.mjs
 echo "→ release readiness"; node scripts/check-release-readiness.mjs
-echo "→ sync markers (Node/Swift EPUB builders)"; node scripts/check-sync-markers.mjs
+echo "→ shared rules (promised) + recorded differences"; node scripts/check-sync-markers.mjs
 echo "→ optional boundary (epub-doctor without a rasteriser)"; node scripts/check-optional-boundary.mjs
 echo "→ package ledger"; node scripts/check-packages.mjs
 echo "→ package ledger (selftest — every gate must still fire)"; node scripts/check-packages.mjs --selftest

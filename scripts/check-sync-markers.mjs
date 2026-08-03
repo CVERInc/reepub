@@ -1,41 +1,39 @@
 #!/usr/bin/env node
-// check-sync-markers.mjs — CI guard over the shared HEURISTICS of the two EPUB
-// builders: the Node CLI (src/builder.js + src/epub-text.js) and the native app
-// (packages/epub-kit/Sources/EpubKit/EpubBuilder.swift).
+// check-sync-markers.mjs — what the Node side and the app still owe each other,
+// and what they no longer do.
 //
-// What it does NOT establish: that the two produce the same book. They do not.
-// The app assembles its own package document, NCX and navigation document, and
-// its cover is page one wrapped as an image where the CLI typesets one through a
-// browser — so the two diverge by construction, not by drift. This file compares
-// the constants that exist on BOTH sides; passing it means those agree, and
-// nothing wider. See HANDOFF.md for the inventory and the decision that ends the
-// split.
+// These two implement overlapping rules: the Node modules (src/epub-text.js,
+// src/builder.js) and the app's assembler (packages/epub-kit). This file used to
+// demand they agree on all of it, which sounds like rigour and is actually a
+// promise — that reepub will keep a second implementation in step forever. That
+// promise is declined (2026-08-03). The app is where development happens; the
+// Node path stays, works, and is not held to the app's pace. Nobody needs to be
+// told which is which: the dates say so, per file, and never go stale.
 //
-// It checks two different things:
+// So the output has two kinds of line.
 //
-//   1. The shared `// sync-marker: vN` line — a mechanical reminder that whoever
-//      last touched one side revisited the others.
-//   2. The heuristics themselves, re-derived from BOTH sources and compared: the
-//      break-punctuation set, the heading length metric, the paragraph geometry
-//      thresholds, and the XML escape table.
+//   ✓ / ✗   A PROMISE. The XML escape table and the pictograph range are shared
+//           with tools that are maintained — epub-doctor heals and merges books
+//           with them — so a book repaired by the Node side and one built by the
+//           app must escape the same characters and strip the same range. CI
+//           stops the build when they do not.
 //
-// (2) exists because (1) alone is not evidence of anything. Behind a passing
-// marker check, '“' was missing from the Node break set (so an opening quote at
-// end-of-line started a paragraph in the app and did not in the CLI) and Node
-// measured heading length in UTF-16 code units while Swift measured graphemes (so
-// a 25-character CJK Ext-B title became <h2> in the app and <p> in the CLI). Both
-// are the same class of bug: a shared constant that only ever existed twice.
+//   ·       A RECORD, which never touches the exit code. The paragraph
+//           heuristics, the heading metric and the shared marker version exist
+//           on both sides but are only promised on one. Their difference is
+//           written down as it appears rather than reconstructed later, because
+//           it is precisely the to-do list for the day someone picks the Node
+//           path back up — the day this repository stops being able to use
+//           Swift, for instance.
 //
-// joinText's Latin-run test is spelled too differently in the two languages to
-// compare textually; src/test-builder.js covers it instead. structureChapters
-// lives in src/builder.js, which assembles no heuristics of its own beyond the
-// chapter-title keywords.
+// Deleting those four was the other option, and it was the wrong one: measuring
+// is not asserting. What was being withdrawn was the blocking, not the knowing.
 //
-// Every extractor fails loudly when its anchor is missing: a refactor that hides a
-// heuristic from this checker must break the build, never silently pass it.
+// Every extractor fails loudly when its anchor is missing — for a promise that
+// is a failure, for a record it is only a line saying the comparison could not
+// be made. A missing anchor may never read as agreement either way.
 //
-// Exit 0 = the implementations agree. Exit 1 = they don't. All problems are
-// reported in a single run. No dependencies.
+// Exit 0 = every promise is kept. Exit 1 = one is not. No dependencies.
 
 import { readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
@@ -50,6 +48,7 @@ const MARKER_FILES = ['src/builder.js', JS, SWIFT];
 const read = (relPath) => readFile(join(repoRoot, relPath), 'utf8');
 
 let failed = 0;
+let differences = 0;
 
 function pass(what) {
   console.log(`✓ ${what}`);
@@ -61,9 +60,20 @@ function fail(what, lines) {
   for (const line of lines) console.error(`    ${line}`);
 }
 
-// A check returns an array of problem lines (failure), a string (pass, with a
-// note worth seeing in the CI log), or nothing (plain pass). A throwing extractor
-// counts as a failure so a missing anchor can never read as agreement.
+// Two kinds of line, and the difference is what reepub promises.
+//
+// A `check` is a promise: these must agree, and CI stops the build when they do
+// not. Both surviving ones are rules the LIVE Node tools share with the app —
+// a book healed by epub-doctor and a book built by the app escape XML the same
+// way and strip the same range, because both are maintained.
+//
+// A `record` is not a promise and must never read as a failure. It writes down
+// the current difference between an implementation that moves and one that does
+// not. Demanding they match would be the perpetual-parity commitment reepub has
+// declined, expressed in CI — but the difference is still worth having, because
+// it is exactly the to-do list for the day someone picks the Node path back up.
+// A record never touches the exit code.
+
 function check(what, fn) {
   try {
     const result = fn();
@@ -71,6 +81,23 @@ function check(what, fn) {
     else pass(result ? `${what} — ${result}` : what);
   } catch (err) {
     fail(what, [err.message]);
+  }
+}
+
+function record(what, fn) {
+  try {
+    const result = fn();
+    if (Array.isArray(result)) {
+      differences++;
+      console.log(`· ${what} — differs`);
+      for (const line of result) console.log(`    ${line}`);
+    } else {
+      console.log(`· ${what} — ${result || 'identical'}`);
+    }
+  } catch (err) {
+    // An anchor that has moved is not a divergence and not a failure: it means
+    // this line can no longer be read, which is worth saying and nothing more.
+    console.log(`· ${what} — not comparable: ${err.message}`);
   }
 }
 
@@ -143,7 +170,7 @@ function headingMetric(source, relPath, units) {
 const [builderSrc, jsSrc, swiftSrc] = await Promise.all(MARKER_FILES.map(read));
 const sources = { [MARKER_FILES[0]]: builderSrc, [JS]: jsSrc, [SWIFT]: swiftSrc };
 
-check('sync markers match', () => {
+record('sync markers', () => {
   const markers = MARKER_FILES.map((relPath) =>
     must(sources[relPath].split('\n', 20).join('\n'), relPath, /sync-marker:\s*(\S+)/,
       'the "// sync-marker: vN" line near the top of the file')[1]);
@@ -154,7 +181,7 @@ check('sync markers match', () => {
   return `${markers[0]} across ${MARKER_FILES.length} files`;
 });
 
-check('break-punctuation sets agree', () => {
+record('break-punctuation sets', () => {
   const js = charClassMembers(must(jsSrc, JS,
     /\/\[([^\]]+)\]\$\/\.test\(prevLine\.text\.trim\(\)\)/,
     'the break-punctuation character class in processPage')[1]);
@@ -179,7 +206,7 @@ check('break-punctuation sets agree', () => {
   return problems.length ? problems : `${inJs.size} characters`;
 });
 
-check('heading length metric agrees', () => {
+record('heading length metrics', () => {
   const js = headingMetric(jsSrc, JS, JS_LENGTH_UNITS);
   const swift = headingMetric(swiftSrc, SWIFT, SWIFT_LENGTH_UNITS);
 
@@ -196,7 +223,7 @@ check('heading length metric agrees', () => {
   return problems.length ? problems : `< ${js.limit} ${js.unit}`;
 });
 
-check('paragraph geometry thresholds agree', () => {
+record('paragraph geometry thresholds', () => {
   const axes = [
     ['header/footer y cutoffs', /\.y\s*[<>]=?\s*(0\.\d+)/g],
     ['indent x threshold', /\.x\s*[<>]=?\s*(0\.\d+)/g],
@@ -267,8 +294,10 @@ check('pictograph range agrees', () => {
 });
 
 if (failed > 0) {
-  console.error(`\n${failed} divergence(s) between the Node and Swift EPUB builders. The same PDF would produce different books.`);
+  console.error(`\n${failed} shared rule(s) disagree. A book healed by the Node tools and one built by the app would not behave the same.`);
   process.exit(1);
 }
 
-console.log(`\nNode and Swift EPUB builders agree on every machine-checkable heuristic.`);
+console.log(differences === 0
+  ? `\nThe 2 shared rules agree, and the Node build path has not diverged from the app's.`
+  : `\nThe 2 shared rules agree. ${differences} recorded difference(s) between the Node build path and the app's — not a failure, and the list to work from if the Node path is ever picked back up.`);

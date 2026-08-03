@@ -74,5 +74,5 @@ jobs:
           node scripts/check-packages.mjs
           node scripts/check-packages.mjs --selftest
 
-      - name: Sync markers (Node/Swift shared heuristics)
+      - name: Shared rules (promised) and recorded differences
         run: node scripts/check-sync-markers.mjs
