@@ -6,12 +6,13 @@
 > bisection over ~40 builds, one book at a time, on hardware, 2026-08-01.
 
 **How the books got there matters.** Every build was delivered through Amazon's
-own [Send to Kindle](https://www.amazon.co.jp/sendtokindle/) web uploader
-(`amazon.co.jp` storefront) to a Japanese-market device — not by USB, not by
-email. That is Amazon's own EPUB→KFX conversion pipeline, which is what makes
-these findings about *the converter* rather than about one transfer method. It
-also bounds them: other storefronts and other delivery paths were not tested,
-and the device's firmware version is a variable nobody controlled.
+own Send to Kindle web uploader — not by USB, not by email. That is Amazon's own
+EPUB→KFX conversion pipeline, which is what makes these findings about *the
+converter* rather than about one transfer method.
+
+It also bounds them, and the bound is narrow: one storefront, one device bought
+in that storefront's market, and a firmware version nobody controlled. Other
+storefronts and other delivery paths were not tested.
 
 ## Why this file exists
 
@@ -94,7 +95,8 @@ at hour four of an investigation.
 
 Vertical titles containing Latin letters get each letter stood upright by
 `text-orientation: upright`, producing a column of single characters. Harmless
-for `鹿鼎記`; it will matter for Japanese titles containing English. Not fixed.
+for a title that is all Han characters; it will matter for a Japanese title
+containing English. Not fixed.
 
 ---
 
@@ -229,9 +231,9 @@ Extracted from what actually worked, versus what was merely reasonable:
 
 ## Not answered here
 
-- **Why** a Kindle behaves this way. Only that it does, via the `amazon.co.jp`
-  Send to Kindle converter on 2026-08-01. Both rules are inferred from behaviour,
-  not from documentation.
+- **Why** a Kindle behaves this way. Only that it does, via one storefront's
+  Send to Kindle converter in August 2026. Both rules are inferred from
+  behaviour, not from documentation.
 - Whether other Amazon storefronts convert identically. Plausible — it is
   presumably one pipeline — but "presumably" is how the entity-encoding false
   negative survived a dozen rounds, so it is written here as untested rather

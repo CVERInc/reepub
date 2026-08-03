@@ -108,8 +108,8 @@ attribute on an EPUB 2 package, a table of contents whose identifier disagrees
 with the package, and an `@font-face` pointing at `res:///system/fonts/…`, an
 Android system font that no other reader can load.
 
-`reepub merge` repairs all four. Merging those five volumes turns 20 inherited
-errors into a single book with none.
+`reepub merge` repairs all four. Merging such a set turns every one of those
+inherited errors into a single book with none.
 
 Repair is never silent. Anything removed from someone's book is named on
 stdout, because rewriting a stranger's work without telling them is worse than

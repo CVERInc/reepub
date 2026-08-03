@@ -37,9 +37,9 @@ difference is ownership:
 - **There is no pipe.** No API key, no account, no network call — your books
   *physically cannot* leave the machine. Privacy that's structural, not a promise.
 - **Traditional Chinese & English** recognition out of the box (`zh-Hant` + `en-US`).
-- **Validated EPUB3** — every book is run through a built-in, dependency-free
-  structural validator before it's handed back; one that fails is deleted and the
-  command exits non-zero. `npm test` goes further and holds a freshly built book
+- **Validated EPUB3** — every book is run through a built-in structural
+  validator before it's handed back: no Java, no download, nothing to install,
+  so it always runs. One that fails is deleted and the command exits non-zero. `npm test` goes further and holds a freshly built book
   to the official [epubcheck](https://github.com/w3c/epubcheck) at
   **0 errors / 0 warnings**.
 - **Repairs the books you already have** — `reepub heal` fixes a broken EPUB and
@@ -149,14 +149,16 @@ node src/heal.js broken.epub healed.epub
 
 ```
 Healing broken.epub → healed.epub
-  西遊記 — 55 documents
   healed: EPUB 2.0 spine carried page-progression-direction → rebuilt as EPUB 3.0
   healed: table of contents identifier disagreed with the package → unified
-  healed: 55 chapters declared the XHTML 1.1 doctype → <!DOCTYPE html>
+  healed: every chapter declared the XHTML 1.1 doctype → <!DOCTYPE html>
   healed: dropped @font-face "DroidFont", serif, sans-serif → res:///system/fonts/DroidSansFallback.ttf cannot load in an EPUB
-  ✓ healed.epub (1641 KB)
   ✓ EPUB valid
 ```
+
+Each of those four is a defect class, not a one-off. The last one names the
+reader that wrote the file rather than the file itself, which is the level this
+example stays at: counts and byte sizes would describe somebody's shelf.
 
 Healing never edits in place, and a repair that fails validation is deleted
 rather than handed back. `reepub merge` performs the same repairs on the volumes
