@@ -1,6 +1,6 @@
 # reepub
 
-> Bind the paper you already own — notes, letters, manuscripts, public-domain works — into a personal library of clean, reflowable ebooks. Natively on your Mac, 100% offline.
+> Bind what you already own — paper you scanned, pages you saved, ebooks that arrived broken — into a personal library of clean, reflowable books that pass the official validator at zero errors. Natively on your Mac, 100% offline. The OCR is a tool of its own, if the OCR is all you came for.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Platform: macOS](https://img.shields.io/badge/Platform-macOS%2013%2B-black?logo=apple)](https://www.apple.com/macos/)
@@ -56,11 +56,15 @@ difference is ownership:
 - **Hybrid text + image pages** — pages with little text (illustrations, plates)
   are preserved as images instead of garbled OCR.
 - **Automatic chapter detection** — splits on heading cues (e.g. `第一章`, `Chapter`).
-- **Three ways to use it** — a one-click Mac app, a local web UI, or a CLI.
+- **Four ways to use it** — downloaded command-line tools that need no build, a
+  one-click Mac app, a local web UI, or the Node CLI.
 
 - Localized app UI — English / 繁體中文 / 日本語
 
 ## Prerequisites
+
+Nothing, if you take [Option A](#usage) — the released binaries are universal
+and self-contained. Everything below is for building from source.
 
 - **macOS** 13+ (Apple Silicon strongly recommended) for the native app
 - **Xcode Command Line Tools** — for the Swift compiler (`xcode-select --install`).
@@ -78,7 +82,24 @@ make app            # builds macos/build/Reepub.app (Command Line Tools only)
 
 ## Usage
 
-**Option A — Native macOS app (recommended)**
+**Option A — Download the command-line tools (nothing to build)**
+
+[Latest release](https://github.com/CVERInc/reepub/releases/latest) — universal
+binaries (Apple Silicon and Intel), macOS 13+.
+
+```bash
+tar xzf reepub-cli-*-macos-universal.tar.gz
+xattr -d com.apple.quarantine scan-ocr epub-kit   # unsigned; see the release notes
+
+./scan-ocr book.pdf > pages.json                  # OCR, and nothing else
+./epub-kit pages.json book.epub --title "…" --author "…"
+```
+
+`scan-ocr` is useful on its own: a PDF in, every recognized line with its text
+and its box on stdout. If the text and the layout are all you came for, you can
+stop there — nothing downstream is required.
+
+**Option B — Native macOS app**
 
 ```bash
 make app
@@ -89,7 +110,7 @@ Pick a PDF (or drag one onto the window), let Vision OCR run, optionally set a
 title and author, then **Save as EPUB…** to save the finished book. Everything —
 OCR, assembly, and validation — happens in the app, fully offline.
 
-**Option B — Local web UI**
+**Option C — Local web UI**
 
 ```bash
 make build           # compiles the Swift OCR CLI (bin/scan-ocr) used by the server
@@ -99,7 +120,7 @@ npm start            # serves http://localhost:30232
 Open the page, drop in a PDF, enter a title/author, and download the finished
 EPUB once conversion completes. The conversion log streams live.
 
-**Option C — Command line**
+**Option D — Command line (Node)**
 
 ```bash
 make build

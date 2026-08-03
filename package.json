@@ -1,7 +1,7 @@
 {
   "name": "reepub",
   "version": "1.1.0",
-  "description": "Convert scanned PDFs to reflowable EPUB books using native macOS Vision OCR. 100% offline.",
+  "description": "Scanned PDFs, web pages and broken EPUBs into clean, reflowable EPUB3 that passes official epubcheck at zero errors. Apple Vision OCR on your own Mac, and the OCR ships as its own CLI. 100% offline.",
   "main": "src/builder.js",
   "license": "MIT",
   "author": "CVER Inc.",
@@ -15,14 +15,20 @@
   },
   "keywords": [
     "epub",
+    "epub3",
     "pdf-to-epub",
     "ocr",
+    "ocr-cli",
     "vision",
     "apple-vision",
     "scanned-pdf",
     "ebook",
+    "epubcheck",
     "macos",
+    "swift",
     "offline",
+    "cjk",
+    "vertical-writing",
     "zh-hant"
   ],
   "os": [
