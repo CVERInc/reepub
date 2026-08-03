@@ -45,3 +45,6 @@ experiments/
 
 # Release staging — built by scripts/build-release.sh, uploaded, never committed.
 dist/
+
+# Probe build output
+packages/cover-probe/.build/

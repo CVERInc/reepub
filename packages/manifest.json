@@ -265,6 +265,19 @@
         "scripts/build-release.sh",
         "scripts/test.sh"
       ]
+    },
+    "cover-probe": {
+      "language": "swift",
+      "status": "extracted",
+      "purpose": "An instrument, not a product: renders HTML offscreen with WKWebView and writes a PNG, so the question 'does WKWebView lay out the cover like Chromium' has a measurement instead of an opinion. Findings in docs/wkwebview-cover-parity.md.",
+      "publish": "none",
+      "allowedDependencies": [],
+      "sources": [
+        "packages/cover-probe/Package.swift",
+        "packages/cover-probe/Sources/CoverProbe/main.swift"
+      ],
+      "layer": "render",
+      "layerNote": "Measures a render target. Not on any path a book takes."
     }
   }
 }
