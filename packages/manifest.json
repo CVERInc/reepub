@@ -19,11 +19,37 @@
     "because Vision OCR cannot leave it and offline quality is what the product",
     "stands on. 'target' records where each file is headed; 'sources' records",
     "where it actually is today. They are allowed to disagree — that gap IS the",
-    "migration. What is not allowed is a file belonging to neither."
+    "migration. What is not allowed is a file belonging to neither.",
+    "",
+    "Shape 2026-08-04 (see HANDOFF.md, and reef/docs/SPEC-pagetile-vision.md):",
+    "the pipeline has one junction and it has never been named. PDF becomes OCR",
+    "JSON, which becomes structured chapters, which become an EPUB. That middle",
+    "term is an intermediate representation with one consumer, so nothing forced",
+    "it to be honest. Naming it splits the repo into 'ingest' (anything -> the",
+    "book model) and 'render' (the book model -> a file someone reads), which is",
+    "the same adapter-in/target-out shape pagetile locked on 2026-07-15.",
+    "",
+    "'layer' below records which side of that junction a package is on. It is a",
+    "direction, not a migration: no file has to move for it to be true, and the",
+    "next thing built is expected to land on the side the ledger says it belongs.",
+    "A package with no layer is not part of the pipeline.",
+    "",
+    "Nothing enforces 'layer', and that is deliberate rather than unfinished. A",
+    "gate that forbade an ingest from reaching a render would fail today, which",
+    "would make it a migration order rather than a direction — and this file",
+    "already carries the distinction between a promise CI keeps and a record that",
+    "only tells you where things stand (PRINCIPLES §6). 'layer' is a record. It",
+    "becomes a promise the day the book model is a real boundary, not before.",
+    "",
+    "The book model travels as markdown, not as a library: the shared thing is",
+    "the FORMAT, and each language parses it for itself (ruled 2026-08-04). That",
+    "is only safe because the format gets a written spec and a fixture corpus",
+    "both sides are checked against — without those it is §6's trap again."
   ],
-
-  "assemblers": ["epub-kit", "epub-binder"],
-
+  "assemblers": [
+    "epub-kit",
+    "epub-binder"
+  ],
   "packages": {
     "scan-ocr": {
       "language": "swift",
@@ -35,18 +61,22 @@
         "packages/scan-ocr/Package.swift",
         "packages/scan-ocr/Sources/ScanOCR/OCREngine.swift",
         "packages/scan-ocr/Sources/ScanOCRCLI/main.swift"
-      ]
+      ],
+      "layer": "ingest",
+      "layerNote": "PDF -> OCR JSON. The only ingest that starts from something that is not text."
     },
-
     "cjk-specimen": {
       "language": "node",
       "status": "extracted",
       "purpose": "Specimen text for CJK typography fixtures, plus the list of places CJK layout is known to break — each hazard carrying what it is for and where the evidence lives. A fixture that never touches a boundary proves nothing when it passes.",
       "publish": "public",
       "allowedDependencies": [],
-      "sources": ["packages/cjk-specimen/specimen.js"]
+      "sources": [
+        "packages/cjk-specimen/specimen.js"
+      ],
+      "layer": "shared",
+      "layerNote": "Fixtures. Not a stage."
     },
-
     "epub-kit": {
       "language": "swift",
       "status": "extracted",
@@ -57,18 +87,22 @@
         "packages/epub-kit/Package.swift",
         "packages/epub-kit/Sources/EpubKit/EpubBuilder.swift",
         "packages/epub-kit/Sources/EpubKitCLI/main.swift"
-      ]
+      ],
+      "layer": "render",
+      "layerNote": "Book model -> EPUB 3. The maintained assembler."
     },
-
     "epub-text": {
       "language": "node",
       "status": "planned",
       "purpose": "XML and text plumbing: escaping, serialisation, entity decoding, pictograph stripping. Seven modules import it and every one of them is alive.",
       "publish": "internal",
       "allowedDependencies": [],
-      "sources": ["src/epub-text.js"]
+      "sources": [
+        "src/epub-text.js"
+      ],
+      "layer": "shared",
+      "layerNote": "Plumbing both sides call. Not a stage."
     },
-
     "epub-binder": {
       "language": "node",
       "status": "transitional",
@@ -76,25 +110,33 @@
       "publish": "internal",
       "allowedDependencies": [],
       "target": "epub-kit — Node tools should call the Swift binary rather than emit their own <package>",
-      "sources": ["src/binder.js"]
+      "sources": [
+        "src/binder.js"
+      ],
+      "layer": "render",
+      "layerNote": "Book model -> EPUB 3, Node side. Second assembler; see target."
     },
-
     "epub-doctor": {
       "language": "node",
       "status": "planned",
       "purpose": "Operates on finished EPUBs: validate, heal, merge. Never touches OCR, never rasterises a cover — which is what keeps its dependency budget to one library.",
       "publish": "public",
-      "allowedDependencies": ["cheerio"],
-      "optionalPackages": ["epub-raster"],
+      "allowedDependencies": [
+        "cheerio"
+      ],
+      "optionalPackages": [
+        "epub-raster"
+      ],
       "sources": [
         "src/validator.js",
         "src/heal.js",
         "src/merge.js",
         "src/contents-page.js",
         "src/optional.js"
-      ]
+      ],
+      "layer": "both",
+      "layerNote": "Takes an EPUB and gives back an EPUB — it is an ingest and a render at once, which is why it is the piece that most wants the book model to exist."
     },
-
     "epub-cover": {
       "language": "node",
       "status": "planned",
@@ -102,39 +144,64 @@
       "publish": "internal",
       "allowedDependencies": [],
       "target": "moves to epub-kit (Swift), which emits the same HTML for both rasterisers",
-      "sources": ["src/cover-page.js", "src/title-setting.js"]
+      "sources": [
+        "src/cover-page.js",
+        "src/title-setting.js"
+      ],
+      "layer": "render",
+      "layerNote": "Typesetting for a render target, not a stage of its own."
     },
-
     "epub-raster": {
       "language": "node",
       "status": "planned",
       "purpose": "Turns the typeset cover into pixels, and redraws pictographs as engravings. Chromium and sharp live here and nowhere else — this is the package a repair tool must be able to do without.",
       "publish": "internal",
-      "allowedDependencies": ["playwright", "sharp"],
+      "allowedDependencies": [
+        "playwright",
+        "sharp"
+      ],
       "target": "one of two rasterisers over one typesetter; the app's is WKWebView",
-      "sources": ["src/cover-generator.js", "src/emoji-glyphs.js"]
+      "sources": [
+        "src/cover-generator.js",
+        "src/emoji-glyphs.js"
+      ],
+      "layer": "render",
+      "layerNote": "Pixels for a render target."
     },
-
     "web-ingest": {
       "language": "node",
       "status": "planned",
       "purpose": "A web page reduced to structure: strip layout, translate classes, dehydrate images. The base a web→md exporter would sit on.",
       "publish": "internal",
-      "allowedDependencies": ["cheerio", "sharp", "playwright"],
-      "sources": ["src/sanitizer.js", "src/dehydrator.js", "src/web-to-epub.js"]
+      "allowedDependencies": [
+        "cheerio",
+        "sharp",
+        "playwright"
+      ],
+      "sources": [
+        "src/sanitizer.js",
+        "src/dehydrator.js",
+        "src/web-to-epub.js"
+      ],
+      "layer": "ingest",
+      "layerNote": "Web pages -> chapters. Second ingest; predates the junction being named."
     },
-
     "ocr-builder-node": {
       "language": "node",
       "status": "freeze-pending",
       "purpose": "The Node path from OCR output to EPUB, and the paragraph heuristics only it uses. This is the ONLY code genuinely duplicated by EpubBuilder.swift.",
       "publish": "none",
-      "allowedDependencies": ["cheerio"],
+      "allowedDependencies": [
+        "cheerio"
+      ],
       "allowedDependenciesNote": "cheerio arrives through validator.js; builder.js imports nothing external itself",
       "freezeCondition": "flips to \"frozen\" when the CLI builds through epub-kit. Kept, not strangled — but kept as a FILE, never as a documented way to use reepub.",
-      "sources": ["src/builder.js"]
+      "sources": [
+        "src/builder.js"
+      ],
+      "layer": "ingest",
+      "layerNote": "OCR JSON -> chapters. The Node half of what scan-ocr feeds."
     },
-
     "app": {
       "language": "swift",
       "status": "planned",
@@ -147,16 +214,22 @@
         "macos/Sources/ReepubApp/Localization.swift"
       ]
     },
-
     "cli": {
       "language": "node",
       "status": "planned",
       "purpose": "Thin surfaces over the cores: local web UI, the web→EPUB entry point, the image optimizer.",
       "publish": "public",
-      "allowedDependencies": ["cheerio", "sharp", "playwright"],
-      "sources": ["src/server.js", "scripts/build-from-web.js", "scripts/optimize.js"]
+      "allowedDependencies": [
+        "cheerio",
+        "sharp",
+        "playwright"
+      ],
+      "sources": [
+        "src/server.js",
+        "scripts/build-from-web.js",
+        "scripts/optimize.js"
+      ]
     },
-
     "_tests": {
       "language": "node",
       "status": "virtual",
@@ -172,7 +245,6 @@
         "macos/Sources/ReepubSelfTest/main.swift"
       ]
     },
-
     "_tooling": {
       "language": "node",
       "status": "virtual",
