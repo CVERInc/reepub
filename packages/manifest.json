@@ -38,6 +38,15 @@
       ]
     },
 
+    "cjk-specimen": {
+      "language": "node",
+      "status": "extracted",
+      "purpose": "Specimen text for CJK typography fixtures, plus the list of places CJK layout is known to break — each hazard carrying what it is for and where the evidence lives. A fixture that never touches a boundary proves nothing when it passes.",
+      "publish": "public",
+      "allowedDependencies": [],
+      "sources": ["packages/cjk-specimen/specimen.js"]
+    },
+
     "epub-kit": {
       "language": "swift",
       "status": "planned",

@@ -49,6 +49,9 @@ const os = require('os');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const { validateEpub } = require('./validator');
+// Typography fixtures come from the specimen, not from a real book — see
+// packages/cjk-specimen for why, and for what each hazard string is for.
+const { HAN } = require('../packages/cjk-specimen/specimen');
 
 const REPO = path.resolve(__dirname, '..');
 
@@ -427,7 +430,7 @@ p { background: url(images/tile.png); }`;
     const { generateCover } = require('./cover-generator');
     const sharpLib = require('sharp');
     const shelfCover = path.join(work, 'shelf-cover.jpeg');
-    const shelfFit = await generateCover('西遊記', '吳承恩', shelfCover, { pageDirection: 'rtl' });
+    const shelfFit = await generateCover(HAN.title, HAN.author, shelfCover, { pageDirection: 'rtl' });
 
     const tile = await sharpLib(shelfCover).greyscale().resize({ width: 230 }).toBuffer();
     const tone = (await sharpLib(tile).stats()).channels[0];
@@ -436,6 +439,14 @@ p { background: url(images/tile.png); }`;
 
     // The title has to be a shape you can recognise across a grid, not a
     // caption. Measured as the share of the tile the ink actually covers.
+    //
+    // The specimen title is deliberately the sparse case: 千字文 is 13 strokes
+    // where the book title it replaced was 28, and the measurement moved 8.1%
+    // → 4.8% against a 3% floor. That is the probe getting sharper, not weaker
+    // — a thin title is the hard side of "still legible at thumbnail size", so
+    // a regression that shrinks the type fails here sooner. It also leaves less
+    // headroom, which is the cost: if this ever goes flaky, that is why, and a
+    // denser phrase from the same specimen is the fix rather than a lower floor.
     const { data, info } = await sharpLib(tile).raw().toBuffer({ resolveWithObject: true });
     let lit = 0;
     for (let i = 0; i < data.length; i += info.channels) if (data[i] > 128) lit++;
@@ -515,15 +526,16 @@ p { background: url(images/tile.png); }`;
 
     const { inspect, relink, normalize } = require('./contents-page');
     const navLabels = new Map([
-      ['第一回靈根育孕源流出', '3.xhtml'],
-      ['第二回悟徹菩提真妙理', '4.xhtml'],
-      ['第三回四海千山皆拱伏', '5.xhtml'],
+      [`第一回${HAN.couplets[0]}`.replace(/\u3000/g, ''), '3.xhtml'],
+      [`第二回${HAN.couplets[1]}`.replace(/\u3000/g, ''), '4.xhtml'],
+      [`第三回${HAN.couplets[2]}`.replace(/\u3000/g, ''), '5.xhtml'],
       ['後記', '6.xhtml'],
     ]);
-    const tocDoc = XHTML('西遊記',
-      '<div>西遊記<br/>第一回　靈根育孕源流出<br/>第二回　悟徹菩提真妙理<br/>第三回　四海千山皆拱伏<br/>後記</div>');
+    const tocDoc = XHTML(HAN.title,
+      `<div>${HAN.title}<br/>第一回　${HAN.couplets[0]}<br/>第二回　${HAN.couplets[1]}`
+      + `<br/>第三回　${HAN.couplets[2]}<br/>後記</div>`);
     const chapterDoc = XHTML('第一回',
-      '<p>第一回　靈根育孕源流出</p><p>蓋聞天地之數，有十二萬九千六百歲為一元。</p><p>將一元分為十二會。</p><p>每會該一萬八百歲。</p>');
+      `<p>第一回　${HAN.couplets[0]}</p>` + HAN.prose.map(line => `<p>${line}</p>`).join(''));
 
     const tocVerdict = inspect(tocDoc, navLabels);
     const chapterVerdict = inspect(chapterDoc, navLabels);
@@ -535,9 +547,9 @@ p { background: url(images/tile.png); }`;
     const relinked = relink(tocDoc, navLabels);
     assert(relinked.linked === 4,
       `every line the navigation knows becomes a link (linked ${relinked.linked})`);
-    assert(/<a href="3\.xhtml">第一回　靈根育孕源流出<\/a>/.test(relinked.xhtml),
+    assert(relinked.xhtml.includes(`<a href="3.xhtml">第一回　${HAN.couplets[0]}</a>`),
       'a chapter title links to the chapter the navigation gives it');
-    assert(!/<a[^>]*>西遊記</.test(relinked.xhtml),
+    assert(!new RegExp(`<a[^>]*>${HAN.title}<`).test(relinked.xhtml),
       'a line the navigation does not list is left exactly as it was');
     assert(isWellFormed(relinked.xhtml), 'the relinked page is still well-formed XML');
 

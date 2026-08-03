@@ -42,6 +42,14 @@ const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
 
+// Typography fixtures come from the specimen, never from a real book: a title
+// in a fixture reads as a description of somebody's shelf, and a specimen does
+// not. The rare characters are referenced by name because most terminals draw
+// them as an "invalid character" diamond — see packages/cjk-specimen.
+const { HAN, KANA, HAZARD, MIXED_RUN } = require('../packages/cjk-specimen/specimen');
+const EXT_B = HAZARD.extensionB.char;   // U+21489
+const ARROW = HAZARD.arrow.char;        // U+2192, must survive
+
 let failures = 0;
 function assert(condition, message) {
   if (!condition) {
@@ -209,7 +217,7 @@ async function main() {
     // complete book — and changing nothing else — brought the cover back.
     const emoji = sanitizer.sanitizeChapter(
       '<html><body><h2>🧠 概念圖解</h2><p>很好 🚀 的想法</p>'
-      + '<p class="fw-arrow">頂尖人才 → 卓越團隊 • 𡒉鼎記</p>'
+      + `<p class="fw-arrow">${MIXED_RUN}</p>`
       + '<p><img src="a.png" alt="📊 圖表"/></p></body></html>', opts);
     assert(!/[\u{1F000}-\u{1FAFF}]/u.test(emoji.xhtml),
       'pictographic emoji do not reach the book');
@@ -219,11 +227,24 @@ async function main() {
       'an emoji between words leaves one space, so the words do not run together');
     assert(emoji.xhtml.includes('→') && emoji.xhtml.includes('•'),
       'arrows and bullets stay — a diagram of boxes and arrows still reads as one');
-    assert(emoji.xhtml.includes('𡒉'),
+    assert(emoji.xhtml.includes(EXT_B),
       'CJK Extension B survives: a book never loses a character of its own language to this');
     assert(/alt="圖表"/.test(emoji.xhtml),
       'alt text is cleaned too — it is text a reader can be shown');
     assert(isWellFormed(emoji.xhtml), 'and the chapter is still well-formed XML');
+  }
+
+  section('CJK specimen: its own annotations are checked, not believed');
+  {
+    // A specimen whose notes have drifted from its strings is worse than none:
+    // every fixture downstream still passes while the reason each string exists
+    // has quietly become fiction.
+    const { checkSpecimen } = require('../packages/cjk-specimen/specimen');
+    const problems = checkSpecimen();
+    assert(problems.length === 0,
+      `every hazard declares a reason, its evidence, and codepoints it actually contains (${problems.join('; ') || 'clean'})`);
+    assert(EXT_B.length === 2 && [...EXT_B].length === 1,
+      'the Extension B specimen is still a surrogate pair — JS counts 2 where Swift counts 1, which is the disagreement check-sync-markers exists for');
   }
 
   section('Emoji glyphs: pictographs redrawn as engravings');
@@ -235,14 +256,14 @@ async function main() {
     const glyphs = require('./emoji-glyphs');
     const cheerio = require('cheerio');
 
-    const found = glyphs.collectPictographs('🧠 概念 🚀🚀 與 𡒉 與 → 和 👁️');
+    const found = glyphs.collectPictographs(`🧠 概念 🚀🚀 與 ${EXT_B} 與 ${ARROW} 和 👁️`);
     assert(found.size === 3 && found.has('🧠') && found.has('🚀') && found.has('👁'),
       `collect finds each distinct pictograph once, FE0F folded away (got ${[...found].join(' ')})`);
-    assert(![...found].some(c => c === '𡒉' || c === '→'),
+    assert(![...found].some(c => c === EXT_B || c === ARROW),
       'and neither CJK Extension B nor an arrow is ever collected');
 
     const $ = cheerio.load(
-      '<html><body><p>🧠 概念圖解</p><p>火箭 🚀 升空,𡒉 與 → 不動</p>'
+      `<html><body><p>🧠 概念圖解</p><p>火箭 🚀 升空,${EXT_B} 與 ${ARROW} 不動</p>`
       + '<p><img src="a.png" alt="🚀 圖"/></p></body></html>',
       { xmlMode: true, decodeEntities: false });
     const names = { '🧠': '腦', '🚀': '火箭' };
@@ -261,7 +282,7 @@ async function main() {
       'a pictograph becomes an image at text height, flush with the em box, named in the book\'s language');
     assert(!/[\u{1F000}-\u{1FAFF}]/u.test(out),
       'no pictograph codepoint survives — the codepoint is what kills the cover');
-    assert(out.includes('𡒉 與 → 不動'),
+    assert(out.includes(`${EXT_B} 與 ${ARROW} 不動`),
       'CJK Extension B and arrows pass through untouched');
     assert(out.includes('🧠') === false && out.includes('概念圖解'),
       'the text around the glyph is preserved in place');
@@ -485,8 +506,8 @@ async function main() {
     // in one voice and lets the platform supply each script's own letterforms.
     const faces = [
       cover.buildCoverHtml('A Tale of Two Cities', 'Charles Dickens', 'horizontal'),
-      cover.buildCoverHtml('西遊記', '吳承恩', 'horizontal'),
-      cover.buildCoverHtml('吾輩は猫である', '夏目漱石', 'horizontal'),
+      cover.buildCoverHtml(HAN.title, HAN.author, 'horizontal'),
+      cover.buildCoverHtml(KANA.text, KANA.author, 'horizontal'),
     ].map(html => (html.match(/font-family:\s*([^;]+);/) || [, ''])[1].trim());
     assert(faces.every(f => f && f === faces[0]),
       `the typeface is the same for en, ja and zh-TW titles (got ${JSON.stringify(faces)})`);
@@ -511,7 +532,7 @@ async function main() {
       'and it is deliberately not pure black — pure black is what left the seam');
 
     // 原作者為主、譯者為輔, on the cover as well as in the metadata.
-    const credited = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical', '某某 <譯>');
+    const credited = cover.buildCoverHtml(HAN.title, HAN.author, 'vertical', '某某 <譯>');
     assert(/class="translator"[^>]*>某某 &lt;譯&gt;</.test(credited),
       'a translator is credited on the cover, escaped like every other untrusted field');
     const sizeOf = (html, cls) => {
@@ -521,7 +542,7 @@ async function main() {
     assert(sizeOf(credited, 'translator') > 0 && sizeOf(credited, 'author') > 0
       && sizeOf(credited, 'translator') < sizeOf(credited, 'author'),
       `the translator is set smaller than the author (${sizeOf(credited, 'translator')}em vs ${sizeOf(credited, 'author')}em)`);
-    const uncredited = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical');
+    const uncredited = cover.buildCoverHtml(HAN.title, HAN.author, 'vertical');
     assert(/class="translator"><\/p>/.test(uncredited) && /\.translator:empty\s*\{[^}]*display:\s*none/.test(uncredited),
       'a book with no translator leaves no stray line on the cover');
   } else if (cover) {
@@ -558,7 +579,7 @@ async function main() {
     assert(long.length === 3,
       `a title too tall for the cover is merged back until it fits (got ${long.length} lines)`);
 
-    assert(setTitle('西遊記') === null && setTitle('吾輩は猫である') === null,
+    assert(setTitle(HAN.title) === null && setTitle(KANA.text) === null,
       'a title with no word gaps is left to wrap at one size — equal-width lines would mean unequal glyphs');
     assert(Array.isArray(setTitle('A Tale of Two Cities')),
       'an English title is set into lines');
@@ -569,8 +590,8 @@ async function main() {
     // The cover is HTML, so its type should behave like type: one size chosen
     // for the title it actually has. A constant makes a two-character title
     // small and a fifteen-character one overflow.
-    const big = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical', '', 30);
-    const small = cover.buildCoverHtml('西遊記', '吳承恩', 'vertical', '', 8);
+    const big = cover.buildCoverHtml(HAN.title, HAN.author, 'vertical', '', 30);
+    const small = cover.buildCoverHtml(HAN.title, HAN.author, 'vertical', '', 8);
     const sizeIn = html => Number((html.match(/\.title\s*\{[^}]*font-size:\s*([\d.]+)em/) || [, 0])[1]);
     assert(sizeIn(big) === 30 && sizeIn(small) === 8,
       `the fitted scale reaches the stylesheet (got ${sizeIn(big)}em and ${sizeIn(small)}em)`);
@@ -592,7 +613,7 @@ async function main() {
     // format supports far less CSS than the browser that drew the raster, so
     // the page could break while the thumbnail beside it stayed perfect.
     const page = cover.buildCoverImagePage({
-      imageHref: 'images/cover.jpeg', title: '西遊記', language: 'zh-TW',
+      imageHref: 'images/cover.jpeg', title: HAN.title, language: 'zh-TW',
     });
     assert(/^<\?xml/.test(page) && /xmlns="http:\/\/www\.w3\.org\/1999\/xhtml"/.test(page),
       'the cover page is an XHTML document the container can carry');
