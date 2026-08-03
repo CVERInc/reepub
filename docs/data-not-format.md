@@ -148,9 +148,14 @@ something runs both sides against it.
 
 The corpus must include at least one fixture per hazard: a right-to-left book, a
 vertical CJK book, a book of plates with no prose, a book of prose with no
-images, a chapter whose title contains XML specials, an astral-plane title
-(where JavaScript counts UTF-16 units and Swift counts graphemes), and one
-`.md` containing a fenced code block with `##` inside it.
+images, a book of prose interrupted by a plate, a chapter whose title contains
+XML specials, an astral-plane title (where JavaScript counts UTF-16 units and
+Swift counts graphemes), and a fenced code block containing headings.
+
+`scripts/check-book-format.mjs` holds that list and fails when this paragraph
+and `fixtures/book-md/` stop agreeing — in either direction. A hazard named here
+with no fixture is a gap; a fixture answering no hazard is one nobody will
+maintain.
 
 ---
 

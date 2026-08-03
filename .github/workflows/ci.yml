@@ -74,5 +74,10 @@ jobs:
           node scripts/check-packages.mjs
           node scripts/check-packages.mjs --selftest
 
+      - name: Book-format corpus vs the ledger
+        run: |
+          node scripts/check-book-format.mjs
+          node scripts/check-book-format.mjs --selftest
+
       - name: Shared rules (promised) and recorded differences
         run: node scripts/check-sync-markers.mjs

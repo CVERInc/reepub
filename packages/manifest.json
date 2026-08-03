@@ -253,6 +253,7 @@
       "allowedDependencies": [],
       "sources": [
         "scripts/check-packages.mjs",
+        "scripts/check-book-format.mjs",
         "scripts/check-ocr-contract.mjs",
         "scripts/check-optional-boundary.mjs",
         "scripts/check-release-readiness.mjs",

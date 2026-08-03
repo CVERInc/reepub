@@ -21,4 +21,6 @@ echo "→ shared rules (promised) + recorded differences"; node scripts/check-sy
 echo "→ optional boundary (epub-doctor without a rasteriser)"; node scripts/check-optional-boundary.mjs
 echo "→ package ledger"; node scripts/check-packages.mjs
 echo "→ package ledger (selftest — every gate must still fire)"; node scripts/check-packages.mjs --selftest
+echo "→ book-format corpus vs the ledger"; node scripts/check-book-format.mjs
+echo "→ book-format corpus (selftest — every gate must still fire)"; node scripts/check-book-format.mjs --selftest
 echo "✅ ALL GREEN"
