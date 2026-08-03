@@ -76,7 +76,7 @@ Every package document, NCX and navigation document **on the Node side** is buil
 by `src/binder.js`. Nothing else there may emit one.
 
 The native app is the acknowledged exception, and stating it is the point:
-`macos/Sources/ReepubCore/EpubBuilder.swift` assembles its own package document,
+`packages/epub-kit/Sources/EpubKit/EpubBuilder.swift` assembles its own package document,
 NCX and navigation document. The guard in `src/test-core-spec.js` reads `.js`
 files only, so it has never once seen that half — a gate nobody has watched fail
 is not evidence of a boundary. Until the assembly core moves to Swift (decided
@@ -137,7 +137,7 @@ validation, packaging — is the platform or this repository.
 ## 6. Node and Swift stay honest with each other
 
 The CLI (`src/epub-text.js`) and the macOS app
-(`macos/Sources/ReepubCore/EpubBuilder.swift`) reimplement the same OCR
+(`packages/epub-kit/Sources/EpubKit/EpubBuilder.swift`) reimplement the same OCR
 heuristics in two languages, so the same PDF must produce the same book from
 either. That claim used to be a comment, and it was false in three places —
 including a paragraph-break rule that disagreed on `“` and a heading rule that

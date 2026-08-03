@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 import PDFKit
-import ReepubCore
+import EpubKit
 import ScanOCR
 
 // Headless verification of OCREngine: render a known zh-Hant + en PDF, OCR it,

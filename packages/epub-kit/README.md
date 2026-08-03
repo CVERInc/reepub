@@ -11,7 +11,7 @@ none — anything beyond the standard library is a change to `packages/manifest.
 
 ## Where the code is right now
 
-- `macos/Sources/ReepubCore/EpubBuilder.swift`
+- `packages/epub-kit/Sources/EpubKit/EpubBuilder.swift`
 
 The ledger in [`../manifest.json`](../manifest.json) is the source of truth, and
 `scripts/check-packages.mjs` fails the build if this list and the tree disagree.

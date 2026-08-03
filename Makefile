@@ -12,8 +12,10 @@ build:
 	mkdir -p bin
 	swift build -c release --package-path packages/scan-ocr --product scan-ocr
 	cp packages/scan-ocr/.build/release/scan-ocr bin/scan-ocr
+	swift build -c release --package-path packages/epub-kit --product epub-kit
+	cp packages/epub-kit/.build/release/epub-kit bin/epub-kit
 
 clean:
-	rm -rf bin/scan-ocr macos/build macos/.build packages/scan-ocr/.build
+	rm -rf bin/scan-ocr bin/epub-kit macos/build macos/.build packages/scan-ocr/.build
 
 .PHONY: all app build clean

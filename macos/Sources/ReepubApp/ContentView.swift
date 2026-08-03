@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
-import ReepubCore
+import EpubKit
 import Signet
 import ScanOCR
 

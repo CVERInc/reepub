@@ -1,6 +1,6 @@
 // sync-marker: v1
 // Pure, side-effect-free text/EPUB helpers shared by the CLI builder and its
-// unit tests. Kept behaviorally in sync with macos/Sources/ReepubCore/EpubBuilder.swift
+// unit tests. Kept behaviorally in sync with packages/epub-kit/Sources/EpubKit/EpubBuilder.swift
 // (joinText / processPage / XML escaping; structureChapters lives in builder.js).
 // scripts/check-sync-markers.mjs re-derives the break-punctuation set, the heading
 // length metric, the paragraph-geometry thresholds and the escape table from BOTH

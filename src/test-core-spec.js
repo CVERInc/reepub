@@ -40,7 +40,7 @@
 //     - closes the Playwright browser on the failure path (no leaked child,
 //       no hung process)
 //
-//   src/epub-text.js  <-> macos/Sources/ReepubCore/EpubBuilder.swift
+//   src/epub-text.js  <-> packages/epub-kit/Sources/EpubKit/EpubBuilder.swift
 //     - the paragraph-break punctuation sets agree
 //     - the heading length metric counts the same units on both sides
 
@@ -981,7 +981,7 @@ generateCover('T', 'A', '/System/definitely-not-writable/cover.jpeg', 'horizonta
     // ----------------------------------------------- Node <-> Swift sync
     section('Node/Swift behavioral sync');
 
-    const swiftPath = path.join(REPO, 'macos', 'Sources', 'ReepubCore', 'EpubBuilder.swift');
+    const swiftPath = path.join(REPO, 'packages', 'epub-kit', 'Sources', 'EpubKit', 'EpubBuilder.swift');
     if (fs.existsSync(swiftPath)) {
       const swift = fs.readFileSync(swiftPath, 'utf8');
       const jsSrc = fs.readFileSync(path.join(__dirname, 'epub-text.js'), 'utf8');

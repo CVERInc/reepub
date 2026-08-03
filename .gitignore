@@ -9,6 +9,7 @@ POSITIONING.md
 
 # Compiled Swift OCR binary (built via `make build`)
 bin/scan-ocr
+bin/epub-kit
 
 # Native launcher bundle (built via `bin/build-app.sh`)
 Reepub.app/

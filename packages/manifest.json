@@ -49,11 +49,15 @@
 
     "epub-kit": {
       "language": "swift",
-      "status": "planned",
-      "purpose": "The assembly core: package document, navigation document, NCX, chapter XHTML, cover HTML. The one implementation, per decision A.",
+      "status": "extracted",
+      "purpose": "The assembly core: package document, navigation document, NCX, chapter XHTML, cover. The one implementation, per decision A. Ships a CLI so the Node side can drive it instead of keeping an assembler of its own.",
       "publish": "internal",
       "allowedDependencies": [],
-      "sources": ["macos/Sources/ReepubCore/EpubBuilder.swift"]
+      "sources": [
+        "packages/epub-kit/Package.swift",
+        "packages/epub-kit/Sources/EpubKit/EpubBuilder.swift",
+        "packages/epub-kit/Sources/EpubKitCLI/main.swift"
+      ]
     },
 
     "epub-text": {

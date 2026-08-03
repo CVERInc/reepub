@@ -29,7 +29,12 @@ import { createRequire } from 'node:module';
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 const binary = join(repoRoot, 'bin', 'scan-ocr');
+const epubKit = join(repoRoot, 'bin', 'epub-kit');
 const require = createRequire(import.meta.url);
+// From the specimen, for the same reason every other fixture is: a title in a
+// test reads as somebody's shelf, and a specimen does not.
+const { HAN } = require(join(repoRoot, 'packages', 'cjk-specimen', 'specimen.js'));
+const { title: HAN_TITLE, author: HAN_AUTHOR } = HAN;
 
 let failures = 0;
 function assert(condition, message) {
@@ -172,6 +177,55 @@ try {
       const text = JSON.stringify(chapters);
       assert(/contract|quick|brown/i.test(text),
         'the recognised words survive into the chapters');
+    }
+
+    section('scan-ocr → epub-kit: the all-Swift chain');
+
+    // The reason epub-kit exists is to end the second assembler, and the only
+    // form of that claim worth anything is a book. So the same pages that
+    // builder.js just consumed are handed to the Swift binary instead, and the
+    // result is held to the same bar the Node path is held to: the official
+    // epubcheck at zero errors and zero warnings.
+    if (!existsSync(epubKit)) {
+      assert(false, 'bin/epub-kit is built — run `make build`');
+    } else {
+      const book = join(work, 'chain.epub');
+      const pagesJson = join(work, 'pages.json');
+      // Byte for byte what scan-ocr put on stdout — not a re-serialisation of
+      // the parsed object, which would quietly test a format nobody emits.
+      writeFileSync(pagesJson, run.stdout);
+      const built = spawnSync(epubKit,
+        [pagesJson, book, '--title', HAN_TITLE, '--author', HAN_AUTHOR,
+         '--images', join(work, 'images')],
+        { encoding: 'utf8' });
+      assert(built.status === 0,
+        `epub-kit consumes scan-ocr output unmodified (exit ${built.status}${built.status ? `: ${built.stderr.trim()}` : ''})`);
+      assert(existsSync(book), 'and writes a book');
+
+      if (existsSync(book)) {
+        const { validateEpub } = require(join(repoRoot, 'src', 'validator.js'));
+        const verdict = validateEpub(book);
+        assert(verdict.success === true,
+          `the Swift-built book passes the built-in validator (${verdict.error || 'ok'})`);
+
+        // The bar the Node path already clears. Skipped rather than faked when
+        // the jar is absent: a check that quietly does nothing is worse than a
+        // check that says it did nothing.
+        const jar = process.env.REEPUB_EPUBCHECK_JAR
+          || join(process.env.HOME || '', '.cache', 'reepub', 'epubcheck-5.1.0', 'epubcheck.jar');
+        if (!existsSync(jar)) {
+          console.log('  [SKIP] official epubcheck — jar not fetched (npm run epubcheck)');
+        } else {
+          const checked = spawnSync('java', ['-jar', jar, book], { encoding: 'utf8' });
+          const summary = `${checked.stdout}${checked.stderr}`;
+          const counts = summary.match(/(\d+) fatals? \/ (\d+) errors? \/ (\d+) warnings?/);
+          assert(counts !== null, 'epubcheck ran and its summary was parsed');
+          if (counts) {
+            assert(counts[1] === '0' && counts[2] === '0' && counts[3] === '0',
+              `official epubcheck: 0 fatals / 0 errors / 0 warnings (got ${counts[1]} / ${counts[2]} / ${counts[3]})`);
+          }
+        }
+      }
     }
 
     section('scan-ocr: what it writes to disk');

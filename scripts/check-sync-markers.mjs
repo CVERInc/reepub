@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // check-sync-markers.mjs — CI guard over the shared HEURISTICS of the two EPUB
 // builders: the Node CLI (src/builder.js + src/epub-text.js) and the native app
-// (macos/Sources/ReepubCore/EpubBuilder.swift).
+// (packages/epub-kit/Sources/EpubKit/EpubBuilder.swift).
 //
 // What it does NOT establish: that the two produce the same book. They do not.
 // The app assembles its own package document, NCX and navigation document, and
@@ -44,7 +44,7 @@ import { fileURLToPath } from 'node:url';
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '..');
 
 const JS = 'src/epub-text.js';
-const SWIFT = 'macos/Sources/ReepubCore/EpubBuilder.swift';
+const SWIFT = 'packages/epub-kit/Sources/EpubKit/EpubBuilder.swift';
 const MARKER_FILES = ['src/builder.js', JS, SWIFT];
 
 const read = (relPath) => readFile(join(repoRoot, relPath), 'utf8');

@@ -4,7 +4,7 @@
 //
 // Only what a scanned PDF needs lives here — driving bin/scan-ocr, cutting its
 // pages into chapters (structureChapters, ported to
-// macos/Sources/ReepubCore/EpubBuilder.swift), and rendering those chapters as
+// packages/epub-kit/Sources/EpubKit/EpubBuilder.swift), and rendering those chapters as
 // content documents. The paragraph and heading heuristics belong to
 // ./epub-text; every byte of the package document, the NCX and the navigation
 // document belongs to ./binder. Hand-rolling them here is what shipped a
