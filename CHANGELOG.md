@@ -6,6 +6,8 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-04
+
 An audit found that several of reepub's stated guarantees were not true. Books
 it had already produced were invalid, and the validator that was supposed to
 catch that had passed them. This release makes the guarantees real and adds the
@@ -132,6 +134,21 @@ CI that keeps them that way. See [PRINCIPLES.md](PRINCIPLES.md).
   marker. It found three real divergences, including a paragraph-break rule that
   disagreed on `“` and a heading rule that measured a Traditional-Chinese title
   as 50 characters in one language and 25 in the other.
+
+### Added — binaries you can download
+
+- `scripts/build-release.sh` builds `scan-ocr` and `epub-kit` as **universal**
+  binaries (arm64 + x86_64), so a download works on the whole range of Macs the
+  README's macOS 13 floor implies rather than only on Apple Silicon. Each slice
+  is cross-compiled with `-target` and joined with `lipo`, because SwiftPM's own
+  `--arch` needs xcbuild and this project deliberately builds with Command Line
+  Tools alone. The script refuses to ship a binary that is missing a declared
+  architecture or cannot print its own usage.
+- v1.0.0 shipped with no release assets at all, which meant the only way to run
+  any of this was to clone it and build it. These are unsigned — there is no
+  Developer ID yet — so macOS quarantines them on first run; the release notes
+  say how to clear it. No `.app` is published for the same reason: an unsigned
+  app is blocked outright rather than quarantined with an escape hatch.
 
 ## [1.0.0]
 

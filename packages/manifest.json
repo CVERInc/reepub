@@ -176,7 +176,7 @@
     "_tooling": {
       "language": "node",
       "status": "virtual",
-      "purpose": "Repo-level guards and fetchers. Not shipped.",
+      "purpose": "Repo-level guards, fetchers and the release build. Not shipped.",
       "publish": "none",
       "allowedDependencies": [],
       "sources": [
@@ -189,6 +189,7 @@
         "scripts/fetch-epubcheck.mjs",
         "scripts/calibrate-cover-ground.mjs",
         "scripts/preview-cover.mjs",
+        "scripts/build-release.sh",
         "scripts/test.sh"
       ]
     }

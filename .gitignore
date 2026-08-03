@@ -36,3 +36,12 @@ test-unzip/
 
 # Web→EPUB experiment scratchpad — local only, never published.
 experiments/
+
+# Copyrighted book content — personal use only, never distribute.
+# The experiments/ rule above already covers the teardown output,
+# but these catch stray files placed elsewhere in the repo.
+*.epub
+*-teardown/
+
+# Release staging — built by scripts/build-release.sh, uploaded, never committed.
+dist/
