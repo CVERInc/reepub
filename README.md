@@ -156,6 +156,13 @@ Every package document, table of contents and navigation document comes from
 [PRINCIPLES.md](PRINCIPLES.md) for why that boundary exists and what CI does to
 keep it.
 
+Every threshold those heuristics use — why a page counts as a plate at 120
+characters, why a paragraph breaks at 1.8 line-heights, why the cover grey is
+`#111111` and not black — is written down with its evidence in
+[docs/measured-constants.md](docs/measured-constants.md). None of them are
+values anybody publishes; each was measured or earned by watching something
+specific go wrong.
+
 ## Healing broken books
 
 Ebooks in the wild are broken in ways their owners never see: a forgiving reader
