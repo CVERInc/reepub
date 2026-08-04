@@ -80,16 +80,18 @@
     "epub-kit": {
       "language": "swift",
       "status": "extracted",
-      "purpose": "The assembly core: package document, navigation document, NCX, chapter XHTML, cover. The one implementation, per decision A. Ships a CLI so the Node side can drive it instead of keeping an assembler of its own.",
+      "purpose": "The assembly core: package document, navigation document, NCX, chapter XHTML, cover. The one implementation, per decision A. Ships a CLI so the Node side can drive it instead of keeping an assembler of its own. Also holds the book format itself — BookMarkdown.swift parses and serialises the markdown the book model travels as, and the book-md CLI prints its data columns so a machine can compare it against a second implementation (scripts/check-book-format.mjs).",
       "publish": "internal",
       "allowedDependencies": [],
       "sources": [
         "packages/epub-kit/Package.swift",
         "packages/epub-kit/Sources/EpubKit/EpubBuilder.swift",
-        "packages/epub-kit/Sources/EpubKitCLI/main.swift"
+        "packages/epub-kit/Sources/EpubKitCLI/main.swift",
+        "packages/epub-kit/Sources/EpubKit/BookMarkdown.swift",
+        "packages/epub-kit/Sources/BookMarkdownCLI/main.swift"
       ],
       "layer": "render",
-      "layerNote": "Book model -> EPUB 3. The maintained assembler."
+      "layerNote": "Book model -> EPUB 3, and the book model's own on-disk form. The maintained assembler, and now the reference parser for the format the junction is named after."
     },
     "epub-text": {
       "language": "node",

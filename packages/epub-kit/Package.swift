@@ -19,6 +19,11 @@ let package = Package(
     products: [
         .library(name: "EpubKit", targets: ["EpubKit"]),
         .executable(name: "epub-kit", targets: ["EpubKitCLI"]),
+        // book-md exists so the format has two implementations that can be
+        // compared by a machine. It prints the ledger's data columns as JSON;
+        // scripts/check-book-format.mjs parses the same fixtures in JavaScript
+        // and diffs the two. Without this the cross-parser gate is a [SKIP].
+        .executable(name: "book-md", targets: ["BookMarkdownCLI"]),
     ],
     dependencies: [
         .package(path: "../scan-ocr"),
@@ -28,5 +33,6 @@ let package = Package(
             .product(name: "ScanOCR", package: "scan-ocr"),
         ]),
         .executableTarget(name: "EpubKitCLI", dependencies: ["EpubKit"]),
+        .executableTarget(name: "BookMarkdownCLI", dependencies: ["EpubKit"]),
     ]
 )

@@ -142,12 +142,32 @@ This is not a new invention — it is the shape the tile family already runs in
 three places (`sitetile`, `book-core`, `cardtile`), and reepub's version should
 be recognizably the same test.
 
-**The fixture corpus is the gate.** One directory of `.md` files, parsed by both
-implementations — `book-core.js` in JavaScript and reepub's parser in Swift —
-compared on the data columns above. Two parsers of one written format is not the
-trap of two undocumented implementations claiming agreement in a comment
-(PRINCIPLES §6); the difference is precisely that the format is written down and
-something runs both sides against it.
+**The fixture corpus is the gate, and as of 2026-08-04 it is running.** One
+directory of `.md` files, parsed by both implementations —
+`EpubKit/BookMarkdown.swift` behind the `book-md` CLI, and the JavaScript parser
+inside `scripts/check-book-format.mjs` — compared on the data columns above.
+Two parsers of one written format is not the trap of two undocumented
+implementations claiming agreement in a comment (PRINCIPLES §6); the difference
+is precisely that the format is written down and something runs both sides
+against it.
+
+The JavaScript side was written from this page rather than from the Swift.
+That is deliberate and it is the only thing keeping the gate honest: reading the
+other implementation is how two parsers come to agree about something neither of
+them got right.
+
+### What the fixpoint check does not prove
+
+The round-trip assertion passed on all 11 fixtures and all 110 chapters of a
+real book while the parser was still splitting every source line into its own
+paragraph — the ledger puts paragraph boundaries in the **data** column and
+source line wrapping in the **format** column, and the parser had them
+confused. It round-tripped perfectly, because it was wrong the same way twice.
+
+**Idempotence proves stability, not correctness.** The bug surfaced only when
+the parsed structure was read back and compared against what the fixture claimed
+to be. That is why the gate asserts both, and why the corpus has to carry
+fixtures whose *shape* is known independently of any parser.
 
 The corpus must include at least one fixture per hazard: a right-to-left book, a
 vertical CJK book, a book of plates with no prose, a book of prose with no
