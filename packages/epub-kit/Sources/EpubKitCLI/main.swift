@@ -73,6 +73,10 @@ var title: String?
 var author = ""
 var imagesDir: String?
 var keepEmoji = false
+// The guess lives here, where the person running the command can see and change
+// it, rather than inside the assembler where nobody building an English book
+// would ever find it.
+var language = "zh-Hant"
 
 var args = Array(CommandLine.arguments.dropFirst())
 while let arg = args.first {
@@ -141,7 +145,7 @@ print("Building \(pages.count) page(s) → \(outputPath)", to: &standardError)
 do {
     let report = try EpubBuilder.build(
         pages: pages,
-        metadata: EpubMetadata(title: bookTitle, author: author),
+        metadata: EpubMetadata(title: bookTitle, author: author, language: language),
         outputURL: URL(fileURLWithPath: outputPath),
         options: EpubOptions(removePictographs: !keepEmoji),
         progress: { stage in print("  \(stage)", to: &standardError) })

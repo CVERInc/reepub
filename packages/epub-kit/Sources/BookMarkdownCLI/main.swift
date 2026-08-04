@@ -34,6 +34,8 @@ func die(_ message: String) -> Never {
                      in the report rather than failing the build or vanishing.
       --cover <file> cover image. Without one the book has no cover, which is a
                      smaller book, not a broken one.
+      --lang <tag>   BCP-47. No default: a guess mislabels the book. Taken from
+                     the first document's frontmatter when not given.
 
     """).utf8))
     exit(1)
@@ -47,6 +49,7 @@ var titleArg: String?
 var authorArg = ""
 var imagesArg: String?
 var coverArg: String?
+var langArg: String?
 while let arg = args.first {
     args.removeFirst()
     func value(_ flag: String) -> String {
@@ -61,6 +64,7 @@ while let arg = args.first {
     case "--author": authorArg = value("--author")
     case "--images": imagesArg = value("--images")
     case "--cover": coverArg = value("--cover")
+    case "--lang": langArg = value("--lang")
     default:
         if path != nil { die("more than one file given") }
         path = arg
@@ -121,11 +125,18 @@ if let epubOut {
     let title = titleArg ?? first?.title ?? ""
     if title.isEmpty { die("no title: pass --title, or give the first document one in its frontmatter") }
 
+    // No default. A guessed language mislabels the book, and dc:language is
+    // data — the ledger's first table says so, and a Kindle reads it.
+    let language = langArg ?? first?.lang ?? ""
+    if language.isEmpty {
+        die("no language: pass --lang, or give the first document a `lang:` in its frontmatter")
+    }
+
     let document = BookDocument(metadata: first ?? BookMetadata(), preamble: [], chapters: chapters)
     do {
         let report = try EpubBuilder.build(
             document: document,
-            metadata: EpubMetadata(title: title, author: authorArg),
+            metadata: EpubMetadata(title: title, author: authorArg, language: language),
             outputURL: URL(fileURLWithPath: epubOut),
             imagesDirectory: imagesArg.map { URL(fileURLWithPath: $0) },
             coverImageURL: coverArg.map { URL(fileURLWithPath: $0) })

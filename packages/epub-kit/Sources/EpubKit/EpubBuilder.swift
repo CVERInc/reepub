@@ -13,9 +13,20 @@ import ScanOCR
 public struct EpubMetadata {
     public var title: String
     public var author: String  // optional; empty omits <dc:creator>
-    public init(title: String, author: String) {
+    /// BCP-47. Required, and deliberately without a default.
+    ///
+    /// It was hardcoded to "zh-Hant" in six places until 2026-08-04 — an
+    /// assumption from the OCR path (scanned Chinese books) baked into the
+    /// assembler, where nobody building an English or Japanese book could see
+    /// it. The Node assembler had it right from the start and says why:
+    /// "no default, because a guess mislabels the book" (src/web-to-epub.js).
+    ///
+    /// A caller that must guess should guess where a person can see the guess.
+    public var language: String
+    public init(title: String, author: String, language: String) {
         self.title = title
         self.author = author
+        self.language = language
     }
 }
 
@@ -517,10 +528,10 @@ public enum EpubBuilder {
                 switch chapter {
                 case let .image(t, imageRelPath, _):
                     title = t
-                    xhtml = imageChapterXHTML(title: t, imageRelPath: imageRelPath)
+                    xhtml = imageChapterXHTML(title: t, imageRelPath: imageRelPath, lang: metadata.language)
                 case let .text(t, paragraphs):
                     title = t
-                    xhtml = textChapterXHTML(title: t, paragraphs: paragraphs)
+                    xhtml = textChapterXHTML(title: t, paragraphs: paragraphs, lang: metadata.language)
                 }
 
                 try xhtml.write(to: chaptersDir.appendingPathComponent(fileName),
@@ -531,13 +542,13 @@ public enum EpubBuilder {
 
             // cover.xhtml
             if hasCover {
-                try coverXHTML(title: metadata.title)
+                try coverXHTML(title: metadata.title, lang: metadata.language)
                     .write(to: oebps.appendingPathComponent("cover.xhtml"),
                            atomically: true, encoding: .utf8)
             }
 
             // index.xhtml (TOC page)
-            try indexXHTML(title: metadata.title, chapters: manifestChapters.map { ($0.title, $0.href) })
+            try indexXHTML(title: metadata.title, chapters: manifestChapters.map { ($0.title, $0.href) }, lang: metadata.language)
                 .write(to: oebps.appendingPathComponent("index.xhtml"),
                        atomically: true, encoding: .utf8)
 
@@ -545,7 +556,7 @@ public enum EpubBuilder {
             // with properties="nav" but kept out of the spine, matching the
             // Node binder: the book's own index page is what a reader pages
             // through; this one is for the machine.
-            try navXHTML(title: metadata.title, chapters: manifestChapters.map { ($0.title, $0.href) })
+            try navXHTML(title: metadata.title, chapters: manifestChapters.map { ($0.title, $0.href) }, lang: metadata.language)
                 .write(to: oebps.appendingPathComponent("nav.xhtml"),
                        atomically: true, encoding: .utf8)
 
@@ -670,7 +681,7 @@ public enum EpubBuilder {
     }
     """
 
-    private static func textChapterXHTML(title: String, paragraphs: [Paragraph]) -> String {
+    private static func textChapterXHTML(title: String, paragraphs: [Paragraph], lang: String) -> String {
         let body = paragraphs.map { p -> String in
             // Inline markup is the format's own business, so BookMarkdown
             // renders it. OCR text has none and comes back escaped and
@@ -687,7 +698,7 @@ public enum EpubBuilder {
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE html>
-        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
+        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="\(escapeAttr(lang))" lang="\(escapeAttr(lang))">
         <head>
           <meta charset="UTF-8" />
           <title>\(escapeXML(title))</title>
@@ -711,11 +722,11 @@ public enum EpubBuilder {
         + "oeb-page-head-margin: 0 !important; oeb-page-foot-margin: 0 !important; "
         + "oeb-page-left-margin: 0 !important; oeb-page-right-margin: 0 !important;"
 
-    private static func imageChapterXHTML(title: String, imageRelPath: String) -> String {
+    private static func imageChapterXHTML(title: String, imageRelPath: String, lang: String) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE html>
-        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
+        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="\(escapeAttr(lang))" lang="\(escapeAttr(lang))">
         <head>
           <meta charset="UTF-8" />
           <title>\(escapeXML(title))</title>
@@ -729,11 +740,11 @@ public enum EpubBuilder {
         """
     }
 
-    private static func coverXHTML(title: String) -> String {
+    private static func coverXHTML(title: String, lang: String) -> String {
         """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE html>
-        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
+        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="\(escapeAttr(lang))" lang="\(escapeAttr(lang))">
         <head>
           <meta charset="UTF-8" />
           <title>Cover</title>
@@ -747,13 +758,13 @@ public enum EpubBuilder {
         """
     }
 
-    private static func indexXHTML(title: String, chapters: [(String, String)]) -> String {
+    private static func indexXHTML(title: String, chapters: [(String, String)], lang: String) -> String {
         let items = chapters.map { "    <li><a href=\"\(escapeAttr($0.1))\">\(escapeXML($0.0))</a></li>" }
             .joined(separator: "\n")
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE html>
-        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="zh-Hant" lang="zh-Hant">
+        <html xmlns="http://www.w3.org/1999/xhtml" xml:lang="\(escapeAttr(lang))" lang="\(escapeAttr(lang))">
         <head>
           <meta charset="UTF-8" />
           <title>\(escapeXML(title)) - 目錄</title>
@@ -804,7 +815,7 @@ public enum EpubBuilder {
         <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="BookID" version="3.0">
           <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
             <dc:title>\(escapeXML(metadata.title))</dc:title>\(creator)
-            <dc:language>zh-Hant</dc:language>
+            <dc:language>\(escapeXML(metadata.language))</dc:language>
             <dc:identifier id="BookID">urn:uuid:\(uuid)</dc:identifier>
             <meta property="dcterms:modified">\(isoTimestamp())</meta>\(coverMeta)
           </metadata>
@@ -820,13 +831,13 @@ public enum EpubBuilder {
 
     /// The EPUB 3 navigation document. Same entries as the NCX and the visible
     /// index page — three views of one truth, all built from one chapter list.
-    private static func navXHTML(title: String, chapters: [(String, String)]) -> String {
+    private static func navXHTML(title: String, chapters: [(String, String)], lang: String) -> String {
         let items = chapters.map { "        <li><a href=\"\(escapeAttr($0.1))\">\(escapeXML($0.0))</a></li>" }
             .joined(separator: "\n")
         return """
         <?xml version="1.0" encoding="UTF-8"?>
         <!DOCTYPE html>
-        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="zh-Hant" lang="zh-Hant">
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" xml:lang="\(escapeAttr(lang))" lang="\(escapeAttr(lang))">
         <head>
           <meta charset="UTF-8" />
           <title>\(escapeXML(title))</title>

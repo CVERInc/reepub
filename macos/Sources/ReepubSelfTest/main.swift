@@ -57,7 +57,7 @@ for expected in expectations {
 let epubURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("reepub-selftest.epub")
 do {
     try EpubBuilder.build(pages: pages,
-                          metadata: EpubMetadata(title: "Reepub 自我測試", author: "CVER"),
+                          metadata: EpubMetadata(title: "Reepub 自我測試", author: "CVER", language: "zh-Hant"),
                           outputURL: epubURL)
     let size = (try? FileManager.default.attributesOfItem(atPath: epubURL.path)[.size] as? Int) ?? 0
     print("\nEPUB built: \(epubURL.path) (\(size) bytes)")
@@ -81,7 +81,7 @@ do {
     let url = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("reepub-escape-selftest.epub")
     try EpubBuilder.build(pages: [page],
-                          metadata: EpubMetadata(title: hostileTitle, author: hostileAuthor),
+                          metadata: EpubMetadata(title: hostileTitle, author: hostileAuthor, language: "zh-Hant"),
                           outputURL: url)
     print("  ✓ hostile title/author built without XML errors")
     try? FileManager.default.removeItem(at: url)
@@ -120,7 +120,7 @@ do {
 
     // Default: pictographs removed, and named in the report.
     let report = try EpubBuilder.build(pages: [page],
-                                       metadata: EpubMetadata(title: "Emoji 測試", author: ""),
+                                       metadata: EpubMetadata(title: "Emoji 測試", author: "", language: "zh-Hant"),
                                        outputURL: url)
     let chapter = unzipRead(url, "OEBPS/chapters/ch01.xhtml")
     let strippedOK = report.pictographsRemoved == 2
@@ -136,7 +136,7 @@ do {
     let keepURL = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent("reepub-emoji-keep-selftest.epub")
     let keepReport = try EpubBuilder.build(pages: [page],
-                                           metadata: EpubMetadata(title: "Emoji 測試", author: ""),
+                                           metadata: EpubMetadata(title: "Emoji 測試", author: "", language: "zh-Hant"),
                                            outputURL: keepURL,
                                            options: EpubOptions(removePictographs: false))
     let kept = unzipRead(keepURL, "OEBPS/chapters/ch01.xhtml")

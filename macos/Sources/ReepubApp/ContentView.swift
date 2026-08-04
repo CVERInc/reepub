@@ -175,8 +175,13 @@ final class ReepubModel: ObservableObject {
         panel.message = loc(.savePanelMessage)
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
+        // The app scans Chinese books, so zh-Hant is the honest guess here —
+        // and here is where it belongs. It used to be hardcoded inside the
+        // assembler, which meant every book built by any caller was labelled
+        // Chinese whether it was or not.
         let metadata = EpubMetadata(title: effectiveTitle,
-                                    author: bookAuthor.trimmingCharacters(in: .whitespacesAndNewlines))
+                                    author: bookAuthor.trimmingCharacters(in: .whitespacesAndNewlines),
+                                    language: "zh-Hant")
         let pagesCopy = pages
         let options = EpubOptions(removePictographs: removeEmoji)
         isProcessing = true
