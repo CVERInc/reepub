@@ -254,17 +254,18 @@
       "publish": "none",
       "allowedDependencies": [],
       "sources": [
-        "scripts/check-packages.mjs",
+        "scripts/build-release.sh",
+        "scripts/calibrate-cover-ground.mjs",
         "scripts/check-book-format.mjs",
         "scripts/check-ocr-contract.mjs",
         "scripts/check-optional-boundary.mjs",
+        "scripts/check-packages.mjs",
         "scripts/check-release-readiness.mjs",
         "scripts/check-sync-markers.mjs",
         "scripts/fetch-emoji-assets.mjs",
         "scripts/fetch-epubcheck.mjs",
-        "scripts/calibrate-cover-ground.mjs",
+        "scripts/make-cover.mjs",
         "scripts/preview-cover.mjs",
-        "scripts/build-release.sh",
         "scripts/test.sh"
       ]
     },
