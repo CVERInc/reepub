@@ -14,6 +14,11 @@ build:
 	cp packages/scan-ocr/.build/release/scan-ocr bin/scan-ocr
 	swift build -c release --package-path packages/epub-kit --product epub-kit
 	cp packages/epub-kit/.build/release/epub-kit bin/epub-kit
+	# The Swift half of the cross-parser gate. Built here so the pre-push hook
+	# meets the same gate CI does — the first push after that gate landed passed
+	# locally only because a stale .build/debug/book-md happened to be sitting
+	# there, and went red on CI.
+	swift build -c release --package-path packages/epub-kit --product book-md
 
 clean:
 	rm -rf bin/scan-ocr bin/epub-kit macos/build macos/.build packages/scan-ocr/.build

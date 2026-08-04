@@ -74,6 +74,14 @@ jobs:
           node scripts/check-packages.mjs
           node scripts/check-packages.mjs --selftest
 
+      # book-md is the Swift half of the cross-parser gate, so it has to exist
+      # before the gate runs. It is built here rather than left to the check
+      # because the check refuses to skip itself when the binary is missing —
+      # which is exactly how this step first went red: the pre-push hook passed
+      # on a machine that happened to have .build/debug/book-md lying around.
+      - name: Build book-md (Swift book-format parser)
+        run: swift build --package-path packages/epub-kit --product book-md
+
       - name: Book-format corpus vs the ledger
         run: |
           node scripts/check-book-format.mjs
