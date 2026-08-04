@@ -164,7 +164,46 @@ function wrapLooseBodyContent($) {
   });
 }
 
-// sanitizeChapter(rawHtml, opts) -> { xhtml, title }
+// What a conversion is allowed to lose, counted.
+//
+// This exists because of a book, not a theory. A 110-chapter EPUB was taken
+// apart, translated and rebuilt, and the rebuilt book was missing 30 images and
+// 109 hyperlinks. Nothing went red: the chapter count matched, epubcheck
+// reported zero errors, and eighty-two independent quality reviews never
+// mentioned them — because the step that dropped them handed on plain text, so
+// nothing downstream had ever seen them to miss.
+//
+// That is the shape worth naming: the loss had no error, only a book that was
+// smaller than the one it came from. A converter cannot decide for the owner
+// what matters — every element here is DATA under docs/data-not-format.md — but
+// it can refuse to be quiet. So the census is taken before anything is removed
+// and again at the end, and the difference is handed back.
+//
+// It is a record, not a promise (PRINCIPLES §6). Nothing fails on a non-zero
+// count: `chrome` is supposed to be non-zero, and a caller stripping a site's
+// navigation has not damaged anything. Naming it is the point — the person
+// whose book it is gets to decide which numbers are wrong.
+//
+// `total - chrome` is the number that means GO LOOK, and today it is zero for
+// every input tried: nothing this module removes lives outside CHROME_SELECTOR.
+// That is an invariant, not a coincidence, and src/test-web-spec.js asserts it —
+// so the day a stripping rule is added that eats content, something says so.
+const CENSUS = Object.freeze({
+  images: 'img',
+  links: 'a[href]',
+  listItems: 'li',
+  headings: 'h1, h2, h3, h4, h5, h6',
+  tables: 'table',
+  blockquotes: 'blockquote',
+});
+
+function census($) {
+  const out = {};
+  for (const [key, selector] of Object.entries(CENSUS)) out[key] = $(selector).length;
+  return out;
+}
+
+// sanitizeChapter(rawHtml, opts) -> { xhtml, title, dropped }
 //   lang               xml:lang / lang for the document        (required)
 //   cssHref            stylesheet href, relative to the doc    (required)
 //   fallbackTitle      title for a chapter with no <h1>        (required)
@@ -191,6 +230,10 @@ function sanitizeChapter(rawHtml, opts) {
     .sort((a, b) => b[0].length - a[0].length);
 
   const $ = cheerio.load(rawHtml);
+
+  // Before anything is removed.
+  const arrived = census($);
+  const inChrome = census(cheerio.load(`<body>${$(CHROME_SELECTOR).toString()}</body>`));
 
   $(CHROME_SELECTOR).remove();
 
@@ -260,8 +303,19 @@ function sanitizeChapter(rawHtml, opts) {
   $head.find('title').text(title);
   $head.find('link').attr('href', cssHref);
 
+  const survived = census($);
+
+  // Two numbers per category, because "it was in the navigation bar" and "it
+  // vanished and nobody knows where" are different reports. Only the second one
+  // is a reason to go looking.
+  const dropped = {};
+  for (const key of Object.keys(CENSUS)) {
+    const gone = arrived[key] - survived[key];
+    if (gone > 0) dropped[key] = { total: gone, chrome: Math.min(gone, inChrome[key] || 0) };
+  }
+
   const xhtml = `<?xml version="1.0" encoding="UTF-8"?>\n${XHTML11_DOCTYPE}\n${serializeXml($)}\n`;
-  return { xhtml, title };
+  return { xhtml, title, dropped };
 }
 
 // sortChapterFiles(names) -> a new array ordered by the number in each name.

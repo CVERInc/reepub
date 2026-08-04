@@ -143,8 +143,16 @@ function imageFileNameOf(ref) {
  *                reepub-core.css defines, and every class outside it is dropped
  *   coverLayout  'horizontal' | 'vertical' (cover-generator's allowlist)
  *
- * Resolves with { outputPath } only when the finished file passed
- * validateEpub. On any failure it REJECTS and outputPath is untouched: the
+ * Resolves with { outputPath, dropped } only when the finished file passed
+ * validateEpub. `dropped` is one entry per chapter that lost something on the
+ * way in — images, links, list items, headings, tables, blockquotes — each with
+ * how many went and how many of those were inside the site chrome this module
+ * removes on purpose. It is a RECORD, not a verdict: an empty array means
+ * nothing was lost, and a non-empty one is for the person whose book it is to
+ * read. Nothing here fails on it, because a converter that decided which losses
+ * mattered would be deciding what the book is.
+ *
+ * On any failure it REJECTS and outputPath is untouched: the
  * book is assembled under a staging name and moved into place last, so a
  * broken build can neither ship nor destroy the edition already there.
  *
@@ -200,8 +208,13 @@ async function buildWebEpub(opts) {
 
     const chapters = [];
     const imageRefs = new Set();
+    // What the book lost on the way in, per chapter, so the person whose book
+    // it is can look. See the census note in src/sanitizer.js for the incident
+    // that put it there: a rebuilt book missing thirty images and a hundred
+    // links, with nothing red anywhere.
+    const dropped = [];
     chapterFiles.forEach((name, i) => {
-      const { xhtml, title: chapterTitle } = sanitizeChapter(
+      const { xhtml, title: chapterTitle, dropped: lost } = sanitizeChapter(
         fs.readFileSync(path.join(chaptersDir, name), 'utf8'), {
           lang: language,
           cssHref: CSS_HREF,
@@ -212,6 +225,9 @@ async function buildWebEpub(opts) {
       const href = `chapter-${i + 1}.xhtml`;
       fs.writeFileSync(path.join(oebps, href), xhtml);
       chapters.push({ id: `chapter-${i + 1}`, href, title: chapterTitle });
+      if (lost && Object.keys(lost).length > 0) {
+        dropped.push({ chapter: i + 1, source: name, title: chapterTitle, lost });
+      }
       collectImageRefs(xhtml, imageRefs);
     });
 
@@ -264,7 +280,7 @@ async function buildWebEpub(opts) {
     }
 
     fs.renameSync(stagedPath, outputPath);
-    return { outputPath };
+    return { outputPath, dropped };
   } finally {
     fs.rmSync(work, { recursive: true, force: true });
     // A no-op once the rename published the book; the whole failure path

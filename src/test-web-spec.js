@@ -303,6 +303,69 @@ async function main() {
     }
   }
 
+  section('Sanitizer: what the conversion lost, counted');
+  if (sanitizer && sanitizer.sanitizeChapter) {
+    const opts = {
+      lang: 'en', cssHref: 'css/reepub-core.css', fallbackTitle: 'Chapter',
+    };
+
+    // Nothing removed. The census has to be able to say "nothing" — a report
+    // that is never empty is one nobody reads.
+    const intact = sanitizer.sanitizeChapter(
+      '<html><body><h1>T</h1><p>a</p><ul><li>one</li><li>two</li></ul>'
+      + '<p><a href="https://example.com">link</a></p>'
+      + '<p><img src="a.png" alt=""/></p></body></html>', opts);
+    assert(intact.dropped && Object.keys(intact.dropped).length === 0,
+      `a chapter that lost nothing reports nothing (got ${JSON.stringify(intact.dropped)})`);
+
+    // Removed because it was site chrome. Reported, but named as chrome: "it
+    // was in the navigation bar" and "it vanished and nobody knows where" are
+    // different reports, and only the second is a reason to go looking.
+    const chromeOnly = sanitizer.sanitizeChapter(
+      '<html><body><h1>T</h1>'
+      + '<nav><a href="/a">A</a><a href="/b">B</a><img src="logo.png"/></nav>'
+      + '<p>body text</p></body></html>', opts);
+    assert(chromeOnly.dropped.links
+      && chromeOnly.dropped.links.total === 2 && chromeOnly.dropped.links.chrome === 2,
+      `links inside <nav> are counted as chrome (got ${JSON.stringify(chromeOnly.dropped.links)})`);
+    assert(chromeOnly.dropped.images
+      && chromeOnly.dropped.images.chrome === 1,
+      `so is an image inside it (got ${JSON.stringify(chromeOnly.dropped.images)})`);
+
+    // The census exists because of a book that lost thirty images and a hundred
+    // links with nothing red anywhere. If it cannot notice a loss outside the
+    // chrome, it would not have noticed that one either.
+    const stripped = sanitizer.sanitizeChapter(
+      '<html><body><h1>T</h1><p>keep</p>'
+      + '<style>.x{}</style><script>void 0</script>'
+      + '<nav><a href="/a">A</a></nav>'
+      + '<p><img src="real.png" alt="a diagram the reader needs"/></p>'
+      + '</body></html>',
+      { ...opts, imagePathRewrites: {} });
+    assert(!stripped.dropped.images,
+      `an image outside the chrome survives, so it is not reported (got ${JSON.stringify(stripped.dropped)})`);
+    assert(stripped.dropped.links && stripped.dropped.links.chrome === 1,
+      'the chrome link is still accounted for');
+
+    // The invariant, stated because looking for a counter-example is what
+    // established it: nothing this sanitizer removes is outside the chrome it
+    // is asked to remove. Pictograph-only headings, elements inside <style>,
+    // bare list items — all survive or were never counted. So `total > chrome`
+    // is zero today by construction, and it is the number that means GO LOOK.
+    // The day a stripping rule is added that eats content, this is what says so.
+    const everything = sanitizer.sanitizeChapter(
+      '<html><body><h1>T</h1><h2>🎉</h2>'
+      + '<nav><a href="/a">A</a></nav><footer><img src="f.png"/></footer>'
+      + '<table><tr><td>cell</td></tr></table><blockquote>q</blockquote>'
+      + '<ul><li>a</li><li>b</li></ul><p><a href="https://x.example">keep</a></p>'
+      + '</body></html>', opts);
+    const unexplained = Object.entries(everything.dropped)
+      .map(([k, v]) => [k, v.total - v.chrome])
+      .filter(([, n]) => n > 0);
+    assert(unexplained.length === 0,
+      `every drop is accounted for by the chrome selector (unexplained: ${JSON.stringify(unexplained)})`);
+  }
+
   section('Sanitizer: sortChapterFiles');
   if (sanitizer && sanitizer.sortChapterFiles) {
     // Regression: Array.prototype.sort() is lexicographic, so ch10 sorted

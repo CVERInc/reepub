@@ -102,6 +102,42 @@ being asked. Preserving format is allowed. **Depending** on it is not.
 
 ---
 
+## The tool reports; the owner decides
+
+Dropping format is the tool working. Dropping data is the tool failing. The
+table above says which is which — but a tool cannot apply it, because the same
+element is data in one edition and not in another, and only the person whose
+book it is knows which.
+
+So the rule is not "drop the right things". It is:
+
+> **Carry everything, and say what did not make it.** A converter that decides
+> what matters is deciding what the book is.
+
+This was learned the expensive way on 2026-08-04. A 110-chapter EPUB was taken
+apart, translated and rebuilt, and the rebuilt book was missing **30 images and
+109 hyperlinks**. Nothing went red. The chapter count matched, epubcheck
+reported zero errors, and eighty-two independent quality reviews never mentioned
+them — because the step that dropped them handed on plain text, so nothing
+downstream had ever seen them to miss. The loss had no error message. It had a
+book that was smaller than the one it came from.
+
+`sanitizeChapter` now takes a census before and after and returns what went, and
+`buildWebEpub` collects one entry per chapter that lost something. Two numbers
+per category, because *it was in the navigation bar* and *it vanished and nobody
+knows where* are different reports, and only the second is a reason to go
+looking.
+
+It is a **record, not a promise** — nothing fails on a non-zero count. A gate
+would have to rank the categories, and ranking them is the decision that belongs
+to the owner.
+
+The same line decides where an editorial judgement lives. Not restoring an
+original publisher's logo into a translated edition is a decision about *that
+edition*; it belongs to the person building it, written down with its reason. A
+tool that made that call for everyone would be doing the thing this page exists
+to refuse.
+
 ## What markdown cannot say
 
 Frontmatter is where data goes when the syntax has no room for it. It is not a
