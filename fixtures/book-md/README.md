@@ -10,3 +10,10 @@ does.
 `scripts/check-book-format.mjs` asserts this directory stays complete against
 the ledger — a hazard added to the ledger with no fixture here is a gap the
 machine finds, not the next reader.
+
+Two provenances, and it is worth knowing which a fixture has. Eight of these
+were reasoned out from the format. Three — `heading-inside-blockquote.md`,
+`bulleted-list.md`, `empty-chapter.md` — were found by putting a real
+110-chapter book through a converter on 2026-08-04 and reading the result; every
+one of them had already shipped as a visible defect. Reasoning found eight of
+eleven, which is the honest hit rate to expect from the next reasoned hazard.

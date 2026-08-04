@@ -41,6 +41,11 @@ const REQUIRED = {
   'a chapter whose title contains XML specials': 'xml-specials-in-title.md',
   'an astral-plane title': 'astral-title.md',
   'a fenced code block containing headings': 'fence-containing-headings.md',
+  // Found by running a real book through a converter, not by reasoning about the
+  // format — see the ledger section that says so.
+  'a heading inside a blockquote': 'heading-inside-blockquote.md',
+  'a chapter containing a list': 'bulleted-list.md',
+  'a book with an empty chapter': 'empty-chapter.md',
 };
 
 // The ledger is prose and wraps, so a hazard can straddle a newline. Matching on
@@ -146,6 +151,10 @@ function selftest() {
     // reported 3/3 that way until the corpus was clean enough to expose it.
     ['a fixture whose only heading is inside a fence', 'astral-title.md',
       (t) => t.replace(/^# 𡒉$/m, '```\n# 𡒉\n```')],
+    // The rule every hazard in REQUIRED leans on, and the one nobody had watched
+    // fail: three hazards were added on 2026-08-04 trusting it to catch a
+    // missing fixture, on no evidence that it ever had.
+    ['a hazard whose fixture is missing', 'bulleted-list.md', null],
   ];
 
   let proven = 0;
@@ -154,6 +163,9 @@ function selftest() {
     mkdirSync(scratch, { recursive: true });
     for (const f of fixtures()) {
       const text = readFileSync(join(CORPUS, f), 'utf8');
+      // corrupt === null means "leave this fixture out entirely" — the
+      // corruption is the absence.
+      if (f === file && corrupt === null) continue;
       writeFileSync(join(scratch, f), f === file ? corrupt(text) : text);
     }
     const before = failures;

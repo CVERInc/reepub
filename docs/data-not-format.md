@@ -64,6 +64,9 @@ losing a reading direction is a book that opens backwards.
 | paragraph text | **data** | **data** | prose |
 | paragraph boundaries | **data** | n/a | blank lines |
 | heading level | **data** | **data** | `#` depth |
+| list items and their order | **data** | **data** | `*` / `-` / `+` lines |
+| a heading inside a blockquote | **data** | **data** | `> #` — a heading, and quoted |
+| a chapter with a title and no body | **data** | **data** | `#` with nothing under it |
 | images and their order | **data** | **data** | embed lines |
 | image alt text | **data** | **data** | inside the embed |
 | plate pages | **data** | **data** | a page holding an image |
@@ -150,7 +153,31 @@ The corpus must include at least one fixture per hazard: a right-to-left book, a
 vertical CJK book, a book of plates with no prose, a book of prose with no
 images, a book of prose interrupted by a plate, a chapter whose title contains
 XML specials, an astral-plane title (where JavaScript counts UTF-16 units and
-Swift counts graphemes), and a fenced code block containing headings.
+Swift counts graphemes), a fenced code block containing headings, a heading
+inside a blockquote, a chapter containing a list, and a book with an empty
+chapter.
+
+### The last three came from a book, not from this page
+
+The first eight hazards were reasoned out. The last three were found the way
+hazards are actually found — by running a real 110-chapter book through a
+converter and reading what came out (`experiments/epub-teardown/naval-teardown`,
+2026-08-04). Each one had already shipped as a visible defect before anybody
+thought to name it:
+
+- **a heading inside a blockquote.** Nine chapters carried `> # sentence`. A
+  converter that strips `> ` and then wraps the remainder in a paragraph prints
+  a literal `#` into the finished book. Nothing in the eight reasoned hazards
+  covers a construct nested inside another construct.
+- **a list.** This table had no row for lists at all, so a converter with no
+  list branch dropped `* item` into prose and nothing said it was wrong. A
+  property missing from the spec cannot be lost — it was never promised.
+- **an empty chapter.** One chapter of the 110 had a title and no body, and the
+  builder needed a special case to keep it in the spine.
+
+Worth stating plainly, because it predicts where the next gap is: **this page
+was written by reasoning about a format, and reasoning found eight of eleven.**
+The corpus is the part that gets better by contact with books.
 
 `scripts/check-book-format.mjs` holds that list and fails when this paragraph
 and `fixtures/book-md/` stop agreeing — in either direction. A hazard named here
