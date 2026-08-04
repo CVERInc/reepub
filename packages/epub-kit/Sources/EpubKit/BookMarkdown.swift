@@ -25,6 +25,7 @@ import Foundation
 /// is one dialect of a family, and a parser that silently dropped a key it did
 /// not recognise would edit a person's document without being asked.
 public struct BookMetadata: Equatable {
+    public init() {}
     public var title: String = ""
     public var lang: String = ""
     /// "ltr" or "rtl". Looks like typography and is data: an EPUB missing it has
@@ -80,6 +81,11 @@ public struct BookChapter: Equatable {
 }
 
 public struct BookDocument: Equatable {
+    public init(metadata: BookMetadata, preamble: [BookBlock], chapters: [BookChapter]) {
+        self.metadata = metadata
+        self.preamble = preamble
+        self.chapters = chapters
+    }
     public var metadata: BookMetadata
     /// Content before the first heading. Rare, and not silently discarded.
     public var preamble: [BookBlock]
@@ -272,6 +278,60 @@ public enum BookMarkdown {
         let alt = String(t[t.index(t.startIndex, offsetBy: 2)..<close])
         let href = String(t[t.index(close, offsetBy: 2)..<t.index(before: t.endIndex)])
         return (href, alt.isEmpty ? nil : alt, .inline)
+    }
+
+    // MARK: - Inline
+    //
+    // Block structure is not the whole format. A link written inline is DATA —
+    // it is how a reader reaches the thing being cited — and a book that prints
+    // `[Navalmanack.com](https://navalmanack.com)` as literal characters has
+    // lost it twice over: unreachable, and ugly about it. Ninety-six of them
+    // shipped that way before anyone looked (2026-08-04).
+    //
+    // The raw text is what the block holds, so round-tripping is exact and this
+    // is only asked for at render time. That also keeps the knowledge here, in
+    // the module that owns the format, rather than in whatever is emitting.
+
+    private static let inlineLink = try! NSRegularExpression(
+        pattern: #"\[([^\]\n]+)\]\(([^)\s]+)\)"#)
+
+    /// The links a run of text carries, in order. Data, per the ledger.
+    public static func links(in text: String) -> [(text: String, href: String)] {
+        let ns = text as NSString
+        return inlineLink.matches(in: text, range: NSRange(location: 0, length: ns.length))
+            .map { (ns.substring(with: $0.range(at: 1)), ns.substring(with: $0.range(at: 2))) }
+    }
+
+    /// A run of text as escaped XHTML, with its inline markup honoured.
+    ///
+    /// Escaping happens per fragment rather than up front: escaping first turns
+    /// an `&` inside a URL into `&amp;` and then treats it as text, and the link
+    /// quietly points somewhere else.
+    public static func inlineXHTML(_ text: String) -> String {
+        let ns = text as NSString
+        var out = ""
+        var cursor = 0
+        for match in inlineLink.matches(in: text, range: NSRange(location: 0, length: ns.length)) {
+            out += escapeXMLText(ns.substring(with: NSRange(location: cursor, length: match.range.location - cursor)))
+            let label = ns.substring(with: match.range(at: 1))
+            let href = ns.substring(with: match.range(at: 2))
+            out += "<a href=\"\(escapeXMLAttribute(href))\">\(escapeXMLText(label))</a>"
+            cursor = match.range.location + match.range.length
+        }
+        out += escapeXMLText(ns.substring(from: cursor))
+        return out
+    }
+
+    private static func escapeXMLText(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+    }
+
+    private static func escapeXMLAttribute(_ s: String) -> String {
+        escapeXMLText(s)
+            .replacingOccurrences(of: "\"", with: "&quot;")
+            .replacingOccurrences(of: "'", with: "&apos;")
     }
 
     // MARK: - Serializing

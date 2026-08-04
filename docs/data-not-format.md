@@ -65,6 +65,7 @@ losing a reading direction is a book that opens backwards.
 | paragraph boundaries | **data** | n/a | blank lines |
 | heading level | **data** | **data** | `#` depth |
 | list items and their order | **data** | **data** | `*` / `-` / `+` lines |
+| inline links (label and target) | **data** | **data** | `[label](url)` |
 | a heading inside a blockquote | **data** | **data** | `> #` — a heading, and quoted |
 | a chapter with a title and no body | **data** | **data** | `#` with nothing under it |
 | images and their order | **data** | **data** | embed lines |
@@ -210,8 +211,8 @@ vertical CJK book, a book of plates with no prose, a book of prose with no
 images, a book of prose interrupted by a plate, a chapter whose title contains
 XML specials, an astral-plane title (where JavaScript counts UTF-16 units and
 Swift counts graphemes), a fenced code block containing headings, a heading
-inside a blockquote, a chapter containing a list, and a book with an empty
-chapter.
+inside a blockquote, a chapter containing a list, a book with an empty chapter,
+and a chapter containing an inline link.
 
 ### The last three came from a book, not from this page
 
@@ -230,9 +231,13 @@ thought to name it:
   property missing from the spec cannot be lost — it was never promised.
 - **an empty chapter.** One chapter of the 110 had a title and no body, and the
   builder needed a special case to keep it in the spine.
+- **an inline link.** The table had no row for links either, so the Swift parser
+  kept `[label](url)` as paragraph text and the book printed it verbatim —
+  ninety-six times. Found the same way and on the same day, which is the point:
+  the corpus grows by contact with books, not by thinking harder about it.
 
 Worth stating plainly, because it predicts where the next gap is: **this page
-was written by reasoning about a format, and reasoning found eight of eleven.**
+was written by reasoning about a format, and reasoning found eight of twelve.**
 The corpus is the part that gets better by contact with books.
 
 `scripts/check-book-format.mjs` holds that list and fails when this paragraph

@@ -55,6 +55,7 @@ const REQUIRED = {
   'a heading inside a blockquote': 'heading-inside-blockquote.md',
   'a chapter containing a list': 'bulleted-list.md',
   'a book with an empty chapter': 'empty-chapter.md',
+  'a chapter containing an inline link': 'inline-link.md',
 };
 
 // The ledger is prose and wraps, so a hazard can straddle a newline. Matching on
@@ -184,6 +185,11 @@ function parseBookJS(text) {
   }
 
   const norm = (s) => s.split(/\s+/).filter(Boolean).join(' ');
+  // Inline links are data: they are how a reader reaches what is cited.
+  // Ninety-six of them shipped printed as literal `[label](url)` before the
+  // ledger had a row for them at all.
+  const INLINE_LINK = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+  const linksIn = (s) => [...String(s).matchAll(INLINE_LINK)].map((m) => [m[1], m[2]]);
   const heading = (t) => {
     const m = /^(#{1,6}) +(.*)$/.exec(t);
     return m ? { level: m[1].length, text: m[2].trim() } : null;
@@ -203,7 +209,7 @@ function parseBookJS(text) {
   // Returns { text: [], headingLevels: [], images: [] } for a run of lines,
   // recursing through blockquotes so a `> #` stays a heading.
   const blocks = (lines) => {
-    const out = { text: [], headingLevels: [], images: [] };
+    const out = { text: [], headingLevels: [], images: [], links: [] };
     let n = 0;
     while (n < lines.length) {
       const t = lines[n].trim();
@@ -232,11 +238,18 @@ function parseBookJS(text) {
         out.text.push(...sub.text);
         out.headingLevels.push(...sub.headingLevels);
         out.images.push(...sub.images);
+        out.links.push(...sub.links);
         continue;
       }
 
       const h = heading(t);
-      if (h) { out.headingLevels.push(h.level); out.text.push(norm(h.text)); n++; continue; }
+      if (h) {
+        out.headingLevels.push(h.level);
+        out.text.push(norm(h.text));
+        out.links.push(...linksIn(h.text));
+        n++;
+        continue;
+      }
 
       const img = embed(t);
       if (img) { out.images.push(img); n++; continue; }
@@ -248,6 +261,7 @@ function parseBookJS(text) {
           const m2 = listItem(lines[n].trim());
           if (!m2 || m2[1] !== marker) break;
           out.text.push(norm(m2[2]));
+          out.links.push(...linksIn(m2[2]));
           n++;
         }
         continue;
@@ -262,7 +276,9 @@ function parseBookJS(text) {
         run.push(p);
         n++;
       }
-      out.text.push(norm(run.join(' ')));
+      const joined = run.join(' ');
+      out.text.push(norm(joined));
+      out.links.push(...linksIn(joined));
     }
     return out;
   };
@@ -290,7 +306,8 @@ function parseBookJS(text) {
     chapters: chapters.map((c) => {
       const b = blocks(c.lines);
       return { level: c.level, title: norm(c.title), text: b.text,
-               images: b.images, innerHeadingLevels: b.headingLevels };
+               images: b.images, innerHeadingLevels: b.headingLevels,
+               links: [...linksIn(c.title), ...b.links] };
     }),
   };
 }
@@ -303,6 +320,13 @@ function crossParser(corpus) {
       + 'skips itself when the tool is missing is how it stays green forever.');
     return;
   }
+
+  // Which binary, out loud. Two builds of book-md can sit side by side and a
+  // stale one outranks a fresh one: this gate went red on a real disagreement
+  // that did not exist, because .build/release was a version behind the
+  // .build/debug that had just been rebuilt. A ruler that says which ruler it
+  // is costs one line.
+  console.log(`  · comparing against ${bin.replace(root + '/', '')}`);
 
   for (const file of fixtures(corpus).sort()) {
     const path = join(corpus, file);
@@ -327,8 +351,10 @@ function crossParser(corpus) {
     // the very check meant to enforce it.
     const img = (list) => list.map((x) => [x.href, x.alt ?? null]);
     const shape = (d) => ({
-      chapters: d.chapters.map((c) => [c.level, c.title, c.text, img(c.images), c.innerHeadingLevels]),
-      preamble: [d.preamble.text, d.preamble.headingLevels, img(d.preamble.images)],
+      chapters: d.chapters.map((c) => [c.level, c.title, c.text, img(c.images),
+                                       c.innerHeadingLevels, c.links ?? []]),
+      preamble: [d.preamble.text, d.preamble.headingLevels, img(d.preamble.images),
+                 d.preamble.links ?? []],
     });
     const a = JSON.stringify(shape(js));
     const b = JSON.stringify(shape(swift));

@@ -41,14 +41,37 @@ public struct EpubOptions {
 /// is named to the person whose book it is rather than done quietly.
 public struct BuildReport {
     public var pictographsRemoved: Int
-    public init(pictographsRemoved: Int = 0) {
+    /// Image hrefs the document asked for and the build could not find.
+    ///
+    /// Named rather than fatal, and named rather than silent. A book that lost
+    /// thirty images without a word is what put this here (docs/data-not-format.md,
+    /// "The tool reports; the owner decides") — refusing to build would be the
+    /// converter deciding the image mattered, and saying nothing would be it
+    /// deciding the image did not.
+    public var imagesNotFound: [String]
+    public init(pictographsRemoved: Int = 0, imagesNotFound: [String] = []) {
         self.pictographsRemoved = pictographsRemoved
+        self.imagesNotFound = imagesNotFound
     }
 }
 
 struct Paragraph {
     let text: String
     let isHeading: Bool
+    /// Set when this run of the chapter is an image rather than prose.
+    ///
+    /// OCR never produces one: a scanned page is either text or a plate, and a
+    /// plate is a whole chapter. A book that arrives as markdown does — an
+    /// illustration sits between two paragraphs and belongs there. `text` stays
+    /// the alt text, so a reader that cannot show the image still gets what it
+    /// said.
+    let imageRelPath: String?
+
+    init(text: String, isHeading: Bool, imageRelPath: String? = nil) {
+        self.text = text
+        self.isHeading = isHeading
+        self.imageRelPath = imageRelPath
+    }
 }
 
 enum Chapter {
@@ -307,6 +330,106 @@ public enum EpubBuilder {
     public static func build(pages: [OCRPage], metadata: EpubMetadata, outputURL: URL,
                       options: EpubOptions = EpubOptions(),
                       progress: ((BuildStage) -> Void)? = nil) throws -> BuildReport {
+        // The OCR path is now one caller of the assembler rather than the
+        // assembler itself. Three things tied them together — where the cover
+        // came from, how chapters were structured, and where a plate's bytes
+        // lived — and all three are now the caller's to answer. Nothing about
+        // the package document, the navigation document or the chapter XHTML
+        // knew about OCR; only these did.
+        return try assemble(
+            chapters: structureChapters(pages),
+            coverJPEG: pages.first?.image.flatMap { jpegData(from: $0) },
+            imageJPEG: { chapter in
+                guard case let .image(_, _, pageIndex) = chapter,
+                      pageIndex < pages.count, let img = pages[pageIndex].image else { return nil }
+                return jpegData(from: img)
+            },
+            metadata: metadata, outputURL: outputURL, options: options, progress: progress)
+    }
+
+    /// Build a book that already exists as chapters — the markdown path.
+    ///
+    /// `imagesDirectory` is where the hrefs in the document resolve. A missing
+    /// file is reported in `BuildReport.imagesNotFound` and the book is built
+    /// without it: a reference that resolves to nothing is a broken book, and
+    /// naming which one beats refusing to build at all.
+    @discardableResult
+    public static func build(document: BookDocument, metadata: EpubMetadata, outputURL: URL,
+                             imagesDirectory: URL?, coverImageURL: URL? = nil,
+                             options: EpubOptions = EpubOptions(),
+                             progress: ((BuildStage) -> Void)? = nil) throws -> BuildReport {
+        var missing: [String] = []
+        let chapters = document.chapters.map { chapter -> Chapter in
+            .text(title: chapter.title, paragraphs: paragraphs(of: chapter.blocks))
+        }
+        // Images are inline in a markdown book, so they are copied by href
+        // rather than looked up per chapter.
+        var byHref: [String: Data] = [:]
+        for chapter in document.chapters {
+            for href in imageHrefs(of: chapter.blocks) {
+                guard byHref[href] == nil else { continue }
+                guard let dir = imagesDirectory,
+                      let data = try? Data(contentsOf: dir.appendingPathComponent((href as NSString).lastPathComponent))
+                else { missing.append(href); continue }
+                byHref[href] = data
+            }
+        }
+        var report = try assemble(
+            chapters: chapters,
+            coverJPEG: coverImageURL.flatMap { try? Data(contentsOf: $0) },
+            imageJPEG: { _ in nil },
+            inlineImages: byHref,
+            metadata: metadata, outputURL: outputURL, options: options, progress: progress)
+        report.imagesNotFound = missing
+        return report
+    }
+
+    private static func paragraphs(of blocks: [BookBlock]) -> [Paragraph] {
+        var out: [Paragraph] = []
+        for block in blocks {
+            switch block {
+            case let .paragraph(text):
+                out.append(Paragraph(text: text, isHeading: false))
+            case let .heading(_, text):
+                out.append(Paragraph(text: text, isHeading: true))
+            case let .list(_, items):
+                // No list element in the OCR model, and inventing one here
+                // would put a second opinion about chapter XHTML in the repo.
+                // The items keep their order and their text, which is what the
+                // ledger calls data.
+                for item in items { out.append(Paragraph(text: item, isHeading: false)) }
+            case let .quote(inner):
+                out.append(contentsOf: paragraphs(of: inner))
+            case let .image(href, alt, _):
+                out.append(Paragraph(text: alt ?? "", isHeading: false,
+                                     imageRelPath: "images/\((href as NSString).lastPathComponent)"))
+            case .fence:
+                continue
+            }
+        }
+        return out
+    }
+
+    private static func imageHrefs(of blocks: [BookBlock]) -> [String] {
+        var out: [String] = []
+        for block in blocks {
+            switch block {
+            case let .image(href, _, _): out.append(href)
+            case let .quote(inner): out.append(contentsOf: imageHrefs(of: inner))
+            default: continue
+            }
+        }
+        return out
+    }
+
+    @discardableResult
+    private static func assemble(chapters chaptersIn: [Chapter],
+                                 coverJPEG: Data?,
+                                 imageJPEG: (Chapter) -> Data?,
+                                 inlineImages: [String: Data] = [:],
+                                 metadata: EpubMetadata, outputURL: URL,
+                                 options: EpubOptions,
+                                 progress: ((BuildStage) -> Void)?) throws -> BuildReport {
         let fm = FileManager.default
         let tempDir = fm.temporaryDirectory.appendingPathComponent("reepub-build-\(UUID().uuidString)")
         let oebps = tempDir.appendingPathComponent("OEBPS")
@@ -329,15 +452,21 @@ public enum EpubBuilder {
             try styleCSS.write(to: oebps.appendingPathComponent("style.css"),
                                atomically: true, encoding: .utf8)
 
-            // Cover (page 0)
+            // Cover
             progress?(.writingCover)
             var hasCover = false
-            if let first = pages.first?.image, let data = jpegData(from: first) {
+            if let data = coverJPEG {
                 try data.write(to: imagesDir.appendingPathComponent("cover.jpeg"))
                 hasCover = true
             }
 
-            var chapters = structureChapters(pages)
+            // Images referenced from inside a chapter, written before the
+            // chapters so a manifest entry never names a file that is not there.
+            for (href, data) in inlineImages {
+                try data.write(to: imagesDir.appendingPathComponent((href as NSString).lastPathComponent))
+            }
+
+            var chapters = chaptersIn
             var report = BuildReport()
 
             // The reader's choice, made after the chapters are structured so
@@ -368,9 +497,7 @@ public enum EpubBuilder {
 
             // Image-page plates
             for chapter in chapters {
-                if case let .image(_, imageRelPath, pageIndex) = chapter,
-                   pageIndex < pages.count, let img = pages[pageIndex].image,
-                   let data = jpegData(from: img) {
+                if case let .image(_, imageRelPath, _) = chapter, let data = imageJPEG(chapter) {
                     let name = (imageRelPath as NSString).lastPathComponent
                     try data.write(to: imagesDir.appendingPathComponent(name))
                 }
@@ -429,8 +556,14 @@ public enum EpubBuilder {
                 }
                 return nil
             }
+            // Inline images are manifested too. Every packaged file has to
+            // appear in the manifest, and an image that is in the zip but not
+            // the manifest is an OPF-014 the moment epubcheck sees it.
+            let inlineItems: [(String, String)] = inlineImages.keys.sorted().enumerated().map { idx, href in
+                ("inline-img-\(idx + 1)", "images/\((href as NSString).lastPathComponent)")
+            }
             try contentOPF(metadata: metadata, uuid: bookUUID, hasCover: hasCover,
-                           imageItems: imageItems,
+                           imageItems: imageItems + inlineItems,
                            chapters: manifestChapters.map { ($0.id, $0.href) })
                 .write(to: oebps.appendingPathComponent("content.opf"),
                        atomically: true, encoding: .utf8)
@@ -539,7 +672,15 @@ public enum EpubBuilder {
 
     private static func textChapterXHTML(title: String, paragraphs: [Paragraph]) -> String {
         let body = paragraphs.map { p -> String in
-            let t = escapeXML(p.text)
+            // Inline markup is the format's own business, so BookMarkdown
+            // renders it. OCR text has none and comes back escaped and
+            // unchanged, which is why this is safe on both paths.
+            let t = BookMarkdown.inlineXHTML(p.text)
+            if let href = p.imageRelPath {
+                return "  <p class=\"reepub-figure\">"
+                    + "<img src=\"../\(escapeAttr(href))\" alt=\"\(escapeAttr(p.text))\" />"
+                    + "</p>"
+            }
             return p.isHeading ? "  <h2>\(t)</h2>" : "  <p>\(t)</p>"
         }.joined(separator: "\n")
 
