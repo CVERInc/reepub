@@ -94,19 +94,47 @@ function setEnglishTitle(title, maxLines = Infinity) {
   return lines.map(line => line.join(' '));
 }
 
+// The one place a CJK title has a break in it.
+//
+// A full-width colon or an em-dash pair does not join two halves of a phrase —
+// it separates a title from its subtitle, and that is where every printed cover
+// breaks. Everything else in Chinese and Japanese runs without gaps.
+const CJK_SUBTITLE_SEPARATOR = /^(.+?)\s*(?:：|——)\s*(.+)$/;
+
+/**
+ * A CJK title split into title and subtitle, or null if it is one phrase.
+ */
+function splitCJKSubtitle(title) {
+  const m = CJK_SUBTITLE_SEPARATOR.exec(String(title).trim());
+  if (!m) return null;
+  const head = m[1].trim();
+  const tail = m[2].trim();
+  return head && tail ? [head, tail] : null;
+}
+
 /**
  * How a title should be set, or nothing.
  *
- * Returns the lines for an English title, and null for one with no word gaps.
- * That null is the point: justifying each line to the same width means scaling
- * the lines differently from one another, and Chinese and Japanese type does
- * not want that — every glyph is one em wide, so a block of it is already
+ * Returns the lines for an English title, and null for a CJK title that is one
+ * phrase. That null is the point: justifying each line to the same width means
+ * scaling the lines differently from one another, and Chinese and Japanese type
+ * does not want that — every glyph is one em wide, so a block of it is already
  * square, and setting one line larger than the next would look like a mistake
- * rather than a decision. A CJK title is left to wrap where the renderer wraps
+ * rather than a decision. Such a title is left to wrap where the renderer wraps
  * it, at one size throughout.
+ *
+ * A title and a subtitle are the exception, and they are not a counter-example
+ * to that rule — they are a different thing being set. `納瓦爾年鑑：財富與快樂指南`
+ * wrapped by measure alone breaks as `年鑑：財 / 富與快 / 樂指南`: the colon
+ * lands at a line end and `財富` and `快樂` are each split down the middle.
+ * Splitting at the separator instead gives two lines that mean something, and
+ * the size difference that falls out of justifying them is the hierarchy a
+ * cover wants rather than an accident — a five-character title over a
+ * seven-character subtitle sets the title larger, which is what it is.
  */
 function setTitle(title, { maxLines = Infinity } = {}) {
-  return isWordBroken(title) ? setEnglishTitle(title, maxLines) : null;
+  if (isWordBroken(title)) return setEnglishTitle(title, maxLines);
+  return splitCJKSubtitle(title);
 }
 
-module.exports = { setTitle, setEnglishTitle, isWordBroken, WEAK_WORDS };
+module.exports = { setTitle, setEnglishTitle, splitCJKSubtitle, isWordBroken, WEAK_WORDS };

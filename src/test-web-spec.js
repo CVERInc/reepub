@@ -583,6 +583,19 @@ async function main() {
       'a title with no word gaps is left to wrap at one size — equal-width lines would mean unequal glyphs');
     assert(Array.isArray(setTitle('A Tale of Two Cities')),
       'an English title is set into lines');
+
+    // A CJK title and its subtitle. Wrapped by measure alone this breaks as
+    // `年鑑：財 / 富與快 / 樂指南` — the colon at a line end, `財富` and `快樂`
+    // each split down the middle. Shipped that way on a real cover before
+    // anyone looked at it (2026-08-04).
+    const withSubtitle = setTitle('納瓦爾年鑑：財富與快樂指南');
+    assert(Array.isArray(withSubtitle) && withSubtitle.length === 2
+      && withSubtitle[0] === '納瓦爾年鑑' && withSubtitle[1] === '財富與快樂指南',
+      `a CJK title breaks at its subtitle separator, and only there (got ${JSON.stringify(withSubtitle)})`);
+    assert(setTitle('人間失格——第二部')?.[0] === '人間失格',
+      'an em-dash pair separates a subtitle too');
+    assert(setTitle('第二章：') === null && setTitle('：開場') === null,
+      'a separator with nothing on one side of it is not a subtitle');
   }
 
   section('Cover generator: type is fitted, not fixed');
