@@ -6,6 +6,22 @@ project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `package-lock.json` is committed. It used to be gitignored, so the `npm ci`
+  branch in CI and `scripts/test.sh` could never run and every install resolved
+  whatever the ranges allowed that day. Both now run `npm ci` with no fallback.
+- The CLDR emoji-name assertions ran nowhere: neither CI nor `scripts/test.sh`
+  fetched the tables, so they always printed `[SKIP]`. Both now fetch them, and
+  under `CI` a missing table fails instead of skipping.
+- The cover-failure probe in `test-core-spec.js` wrote to a hardcoded `/System`
+  path. As root on Linux that path is writable, so the test failed and left a
+  directory behind. It now uses an unwritable directory it creates itself.
+- `make clean` left `packages/epub-kit/.build` (where `book-md` lives), the stale
+  binary that once made the local gate green while CI went red.
+- README: listed Java as a prerequisite for `npm test`, and replaced the
+  `reepub heal` / `reepub merge` commands, which do not exist, with the ones that do.
+
 ## [1.1.0] - 2026-08-04
 
 An audit found that several of reepub's stated guarantees were not true. Books

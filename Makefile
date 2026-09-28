@@ -21,6 +21,6 @@ build:
 	swift build -c release --package-path packages/epub-kit --product book-md
 
 clean:
-	rm -rf bin/scan-ocr bin/epub-kit macos/build macos/.build packages/scan-ocr/.build
+	rm -rf bin/scan-ocr bin/epub-kit macos/build macos/.build packages/*/.build
 
 .PHONY: all app build clean

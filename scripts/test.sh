@@ -4,10 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-if [ ! -d node_modules ] && { [ -f package-lock.json ] || [ -f package.json ]; }; then
-  if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
-fi
+if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi
 echo "→ epubcheck (official validator, cached)"; npm run epubcheck
+echo "→ emoji assets (CLDR names, cached)"; node scripts/fetch-emoji-assets.mjs
 echo "→ test";  npm test --if-present
 echo "→ build (Swift OCR CLI — needs Xcode)"; npm run build --if-present
 # The Swift assembler's own suite. CI has always run this (ci.yml), and this file

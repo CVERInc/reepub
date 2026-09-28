@@ -298,6 +298,10 @@ async function main() {
       assert(glyphs.createNamer('ja')('🚀') === 'ロケット'
         && glyphs.createNamer('en')('🚀') === 'rocket',
         'and the name follows the book\'s language');
+    } else if (process.env.CI) {
+      // CI fetches the tables (ci.yml, scripts/test.sh). A skip there would
+      // print a green run that never checked a single name.
+      assert(false, 'the pinned CLDR tables are present in CI — run: node scripts/fetch-emoji-assets.mjs');
     } else {
       console.log('  [SKIP] CLDR names — run: node scripts/fetch-emoji-assets.mjs');
     }

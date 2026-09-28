@@ -22,13 +22,11 @@ jobs:
         with:
           node-version: "22"
 
+      # The lockfile is committed so this and a local install resolve the same
+      # tree. Plain `npm ci`, with no fallback: a missing or out-of-date lockfile
+      # has to fail here, not quietly resolve whatever the ranges allow today.
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install --no-audit --no-fund
-          fi
+        run: npm ci --no-audit --no-fund
 
       # The conformance suite renders a cover with Playwright and holds the
       # finished book to the official epubcheck. Both are fetched here so the
@@ -38,6 +36,12 @@ jobs:
 
       - name: Fetch epubcheck
         run: npm run epubcheck
+
+      # Pinned and checksum-verified, like epubcheck. Without them the CLDR name
+      # assertions in test-web-spec.js cannot run, and under CI they fail rather
+      # than skip.
+      - name: Fetch emoji assets (CLDR names)
+        run: node scripts/fetch-emoji-assets.mjs
 
       - name: Test
         run: npm test --if-present

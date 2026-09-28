@@ -42,7 +42,7 @@ difference is ownership:
   so it always runs. One that fails is deleted and the command exits non-zero. `npm test` goes further and holds a freshly built book
   to the official [epubcheck](https://github.com/w3c/epubcheck) at
   **0 errors / 0 warnings**.
-- **Repairs the books you already have** — `reepub heal` fixes a broken EPUB and
+- **Repairs the books you already have** — `node src/heal.js` fixes a broken EPUB and
   tells you exactly what it changed. Vertical right-to-left CJK volumes carrying
   four epubcheck errors each came out at zero, with every chapter and their
   reading direction intact. See [Healing](#healing-broken-books).
@@ -71,6 +71,8 @@ and self-contained. Everything below is for building from source.
   No full Xcode required.
 - **Node.js** v20+ — *only* for the optional web UI / CLI path
 - `zip` / `unzip` / `xmllint` — preinstalled on macOS
+- **Java** 11+ — *only* for `npm test`, which runs the official epubcheck jar.
+  Converting and healing books never needs it.
 
 ## Build
 
@@ -189,7 +191,7 @@ reader that wrote the file rather than the file itself, which is the level this
 example stays at: counts and byte sizes would describe somebody's shelf.
 
 Healing never edits in place, and a repair that fails validation is deleted
-rather than handed back. `reepub merge` performs the same repairs on the volumes
+rather than handed back. `node src/merge.js` performs the same repairs on the volumes
 it combines — it is the same engine, so the two cannot drift apart.
 
 What gets repaired:
@@ -218,9 +220,10 @@ npm run validate <file.epub>      # validate any EPUB (or unpacked dir)
 npm run epubcheck                 # fetch the official epubcheck jar (cached)
 ```
 
-`npm test` builds a real book and runs the official epubcheck against it. The
-jar is fetched once into `~/.cache/reepub/` and reused; CI does the same, so the
-local command and the pipeline check exactly the same thing.
+`npm test` builds a real book and runs the official epubcheck against it, so it
+needs `java` on your `PATH`. The jar is fetched once into `~/.cache/reepub/` and
+reused; CI does the same, so the local command and the pipeline check exactly
+the same thing.
 
 ## License
 
