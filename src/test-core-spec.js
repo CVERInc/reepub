@@ -958,10 +958,26 @@ body { -epub-writing-mode: vertical-rl; }`);
     // --------------------------------------------------- cover-generator
     section('Cover generator: no leaked browser on failure');
 
+    // The output path has to be unwritable on every machine that runs this, so
+    // it is made here rather than borrowed from the platform: a hardcoded
+    // /System path is read-only on macOS, but a root process on Linux simply
+    // creates it — the probe then resolves and leaves a directory behind. A
+    // read-only temp dir stops everyone but root, who ignores mode bits; a
+    // regular file standing where the parent directory should be stops root too.
+    const unwritableDir = fs.mkdtempSync(path.join(work, 'unwritable-'));
+    let unwritableOut;
+    if (typeof process.getuid === 'function' && process.getuid() === 0) {
+      const notADir = path.join(unwritableDir, 'not-a-directory');
+      fs.writeFileSync(notADir, '');
+      unwritableOut = path.join(notADir, 'cover.jpeg');
+    } else {
+      fs.chmodSync(unwritableDir, 0o500);
+      unwritableOut = path.join(unwritableDir, 'cover.jpeg');
+    }
     const hangProbe = path.join(work, 'hang-probe.js');
     fs.writeFileSync(hangProbe, `
 const { generateCover } = require(${JSON.stringify(path.join(__dirname, 'cover-generator.js'))});
-generateCover('T', 'A', '/System/definitely-not-writable/cover.jpeg', 'horizontal')
+generateCover('T', 'A', ${JSON.stringify(unwritableOut)}, 'horizontal')
   .then(() => console.log('RESOLVED'))
   .catch(() => console.log('REJECTED'));
 `);
@@ -977,6 +993,9 @@ generateCover('T', 'A', '/System/definitely-not-writable/cover.jpeg', 'horizonta
       `the process exits on its own after a cover failure instead of hanging on a leaked browser (took ${probeMs}ms; ${probe.error ? probe.error.code : 'clean exit'})`);
     assert(/REJECTED/.test(probe.stdout || ''),
       'the cover failure surfaces as a rejected promise (sanity: the probe reached the failure path)');
+    assert(!fs.existsSync(unwritableOut),
+      'the unwritable output path really was unwritable (sanity: nothing was written there)');
+    fs.chmodSync(unwritableDir, 0o700);
 
     // ----------------------------------------------- Node <-> Swift sync
     section('Node/Swift behavioral sync');
